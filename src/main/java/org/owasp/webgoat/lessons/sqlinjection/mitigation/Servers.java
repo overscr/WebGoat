@@ -12,12 +12,14 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.owasp.webgoat.container.LessonDataSource;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * @author nbaars
@@ -89,9 +91,11 @@ public class Servers {
       return "id";
     }
     String candidate = requested.trim().toLowerCase(Locale.ROOT);
-    // Anything the table does not actually have — including a nested CASE expression used to
-    // ask the database yes/no questions — falls back to the default ordering instead of being
-    // concatenated into the statement.
-    return SORTABLE_COLUMNS.contains(candidate) ? candidate : "id";
+    if (!SORTABLE_COLUMNS.contains(candidate)) {
+      // Anything the table does not actually have — a nested CASE expression used to ask the
+      // database yes/no questions, for instance — is rejected rather than concatenated in.
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown sort column");
+    }
+    return candidate;
   }
 }

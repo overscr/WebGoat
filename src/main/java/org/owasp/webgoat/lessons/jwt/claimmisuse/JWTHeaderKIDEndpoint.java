@@ -10,7 +10,6 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.succes
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwsHeader;
 import io.jsonwebtoken.Jwt;
-import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SigningKeyResolverAdapter;
 import io.jsonwebtoken.impl.TextCodec;
@@ -104,7 +103,9 @@ public class JWTHeaderKIDEndpoint implements AssignmentEndpoint {
         } else {
           return failed(this).feedback("jwt-final-not-tom").build();
         }
-      } catch (JwtException e) {
+      } catch (Exception e) {
+        // A kid that resolves to no key leaves the parser without one to verify against; that
+        // is an invalid token, reported as such rather than surfacing as a server error.
         return failed(this).feedback("jwt-invalid-token").output(e.toString()).build();
       }
     }

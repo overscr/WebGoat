@@ -7,12 +7,9 @@ package org.owasp.webgoat.lessons.jwt.claimmisuse;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
-import com.auth0.jwk.JwkException;
 import com.auth0.jwk.JwkProviderBuilder;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
-import com.auth0.jwt.exceptions.JWTVerificationException;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.interfaces.RSAPublicKey;
 import java.util.Set;
@@ -91,7 +88,7 @@ public class JWTHeaderJKUEndpoint implements AssignmentEndpoint {
         } else {
           return failed(this).feedback("jwt-final-not-tom").build();
         }
-      } catch (MalformedURLException | JWTVerificationException | JwkException e) {
+      } catch (Exception e) {
         return failed(this).feedback("jwt-invalid-token").output(e.toString()).build();
       }
     }
