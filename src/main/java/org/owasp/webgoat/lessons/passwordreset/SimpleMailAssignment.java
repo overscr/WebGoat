@@ -9,8 +9,11 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.informationMessage;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import org.apache.commons.lang3.StringUtils;
+import java.util.Base64;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.owasp.webgoat.container.CurrentUsername;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -32,6 +35,21 @@ public class SimpleMailAssignment implements AssignmentEndpoint {
   private final String webWolfURL;
   private RestTemplate restTemplate;
 
+  /**
+   * Passwords handed out by the reset flow have to be unpredictable. Deriving them from the
+   * username meant anyone who knew the account name also knew the new password, without ever
+   * seeing the e-mail.
+   */
+  private final Map<String, String> issuedPasswords = new ConcurrentHashMap<>();
+
+  private String issuePassword(String username) {
+    var password = new byte[16];
+    new SecureRandom().nextBytes(password);
+    var newPassword = Base64.getUrlEncoder().withoutPadding().encodeToString(password);
+    issuedPasswords.put(username, newPassword);
+    return newPassword;
+  }
+
   public SimpleMailAssignment(
       RestTemplate restTemplate, @Value("${webwolf.mail.url}") String webWolfURL) {
     this.restTemplate = restTemplate;
@@ -49,7 +67,8 @@ public class SimpleMailAssignment implements AssignmentEndpoint {
     String emailAddress = ofNullable(email).orElse("unknown@webgoat.org");
     String username = extractUsername(emailAddress);
 
-    if (username.equals(webGoatUsername) && StringUtils.reverse(username).equals(password)) {
+    var issued = issuedPasswords.get(username);
+    if (username.equals(webGoatUsername) && issued != null && issued.equals(password)) {
       return success(this).build();
     } else {
       return failed(this).feedbackArgs("password-reset-simple.password_incorrect").build();
@@ -80,7 +99,7 @@ public class SimpleMailAssignment implements AssignmentEndpoint {
               .time(LocalDateTime.now())
               .contents(
                   "Thanks for resetting your password, your new password is: "
-                      + StringUtils.reverse(username))
+                      + issuePassword(username))
               .sender("webgoat@owasp.org")
               .build();
       try {
