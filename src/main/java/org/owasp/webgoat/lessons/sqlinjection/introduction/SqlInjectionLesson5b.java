@@ -42,11 +42,15 @@ public class SqlInjectionLesson5b implements AssignmentEndpoint {
   }
 
   protected AttackResult injectableQuery(String login_count, String accountName) {
+    // Both operands are bound placeholders now; the user id can no longer close the statement
+    // and append a tautology.
     String queryString = "SELECT * From user_data WHERE Login_Count = ? and userid= " + accountName;
     try (Connection connection = dataSource.getConnection()) {
       PreparedStatement query =
           connection.prepareStatement(
-              queryString, ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
+              "SELECT * From user_data WHERE Login_Count = ? and userid= ?",
+              ResultSet.TYPE_SCROLL_INSENSITIVE,
+              ResultSet.CONCUR_READ_ONLY);
 
       int count = 0;
       try {
@@ -62,7 +66,22 @@ public class SqlInjectionLesson5b implements AssignmentEndpoint {
             .build();
       }
 
+      int userId;
+      try {
+        userId = Integer.parseInt(accountName.trim());
+      } catch (NumberFormatException e) {
+        return failed(this)
+            .output(
+                "Could not parse: "
+                    + accountName
+                    + " to a number"
+                    + "<br> Your query was: "
+                    + queryString.replace("?", login_count))
+            .build();
+      }
+
       query.setInt(1, count);
+      query.setInt(2, userId);
       // String query = "SELECT * FROM user_data WHERE Login_Count = " + login_count + " and userid
       // = " + accountName, ;
       try {
