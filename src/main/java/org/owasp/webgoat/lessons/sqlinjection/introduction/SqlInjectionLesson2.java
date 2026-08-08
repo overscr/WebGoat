@@ -25,9 +25,6 @@ import org.springframework.web.bind.annotation.RestController;
     })
 public class SqlInjectionLesson2 implements AssignmentEndpoint {
 
-  private static final String NOT_EXECUTED =
-      "Free-form SQL is not executed by this endpoint, the input is treated as data only.";
-
   private final LessonDataSource dataSource;
 
   public SqlInjectionLesson2(LessonDataSource dataSource) {
@@ -40,8 +37,13 @@ public class SqlInjectionLesson2 implements AssignmentEndpoint {
     return injectableQuery(query);
   }
 
+  // This assignment used to hand the raw query parameter straight to Statement#executeQuery,
+  // letting a submission such as "1' UNION SELECT ..." run verbatim. Nothing here builds a SQL
+  // statement out of client input anymore, so there is no query left to inject into.
   protected AttackResult injectableQuery(String query) {
-    // The submitted text is never handed to a Statement, so it cannot reach the database at all.
-    return failed(this).feedback("sql-injection.2.failed").output(NOT_EXECUTED).build();
+    return failed(this)
+        .feedback("sql-injection.2.failed")
+        .output("This endpoint no longer runs client-supplied SQL.")
+        .build();
   }
 }

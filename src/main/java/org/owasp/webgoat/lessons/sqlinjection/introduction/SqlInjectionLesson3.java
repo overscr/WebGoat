@@ -19,9 +19,6 @@ import org.springframework.web.bind.annotation.RestController;
 @AssignmentHints(value = {"SqlStringInjectionHint3-1", "SqlStringInjectionHint3-2"})
 public class SqlInjectionLesson3 implements AssignmentEndpoint {
 
-  private static final String NOT_EXECUTED =
-      "Free-form SQL is not executed by this endpoint, the input is treated as data only.";
-
   private final LessonDataSource dataSource;
 
   public SqlInjectionLesson3(LessonDataSource dataSource) {
@@ -34,8 +31,10 @@ public class SqlInjectionLesson3 implements AssignmentEndpoint {
     return injectableQuery(query);
   }
 
+  // This assignment used to pass the query parameter straight into Statement#executeUpdate,
+  // letting a submitted UPDATE change any employee's department. The endpoint executes nothing
+  // client-supplied now, so a record can no longer be altered through this form.
   protected AttackResult injectableQuery(String query) {
-    // The submitted text is never handed to a Statement, so it cannot modify any record.
-    return failed(this).output(NOT_EXECUTED).build();
+    return failed(this).output("This endpoint no longer executes client-supplied SQL.").build();
   }
 }

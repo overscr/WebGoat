@@ -47,7 +47,10 @@ public class SqlInjectionLesson10 implements AssignmentEndpoint {
 
   protected AttackResult injectableQueryAvailability(String action) {
     StringBuilder output = new StringBuilder();
-    // The search term is bound as a parameter, it is never part of the statement text.
+    // The wildcard search term used to be concatenated straight into the LIKE clause, so
+    // "%' OR '1'='1" widened the match to the whole table (or worse, broke out of the clause
+    // entirely). It is bound as a parameter instead, so the wildcard characters this lesson adds
+    // stay data, never part of the parsed statement.
     String query = "SELECT * FROM access_log WHERE action LIKE ?";
 
     try (Connection connection = dataSource.getConnection()) {

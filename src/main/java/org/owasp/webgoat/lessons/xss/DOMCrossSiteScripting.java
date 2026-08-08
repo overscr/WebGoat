@@ -32,16 +32,18 @@ public class DOMCrossSiteScripting implements AssignmentEndpoint {
     SecureRandom number = new SecureRandom();
     lessonSession.setValue("randValue", String.valueOf(number.nextInt()));
 
-    // The "webgoat-requested-by" header can be set by any caller, including script injected into
-    // the page, so it does not identify a trusted origin. The session value is therefore kept
-    // server side and never echoed back in the response.
-    if (param1 == 42
-        && param2 == 24
-        && "dom-xss-vuln".equals(request.getHeader("webgoat-requested-by"))) {
-      return failed(this).output("phoneHome Response is not disclosed").build();
-    } else {
-      return failed(this).build();
+    boolean calledWithExpectedParams =
+        Integer.valueOf(42).equals(param1)
+            && Integer.valueOf(24).equals(param2)
+            && "dom-xss-vuln".equals(request.getHeader("webgoat-requested-by"));
+    // Regardless of whether the call looks legitimate, the random value generated above is kept
+    // server side. It used to be echoed back in the response body, which is exactly the value an
+    // attacker's injected script needs to read in order to solve the follow-up step without ever
+    // needing the DOM XSS itself.
+    if (calledWithExpectedParams) {
+      return failed(this).output("phoneHome was called successfully.").build();
     }
+    return failed(this).build();
   }
 }
 // something like ...

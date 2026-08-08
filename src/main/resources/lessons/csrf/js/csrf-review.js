@@ -29,13 +29,6 @@ $(document).ready(function () {
         '</li>';
 
     getChallenges();
-    getAntiCsrfToken();
-
-    function getAntiCsrfToken() {
-        $.get('csrf/review/token', function (result) {
-            $("#csrfReviewToken").val(result.token);
-        });
-    }
 
     function getChallenges() {
         $("#list").empty();

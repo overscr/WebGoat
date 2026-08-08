@@ -29,8 +29,11 @@ import org.springframework.web.server.ResponseStatusException;
 @Slf4j
 public class Servers {
 
-  // A column name cannot be bound as a parameter, so only these fixed names may be used to sort.
-  private static final List<String> SORTABLE_COLUMNS =
+  // JDBC has no way to bind an identifier (column name) as a parameter the way it binds a value,
+  // so "order by " + column used to let the column parameter carry arbitrary SQL straight into
+  // the statement. The only safe option is to check the requested name against a fixed allowlist
+  // of the columns this table actually has before it is ever placed in the query text.
+  private static final List<String> KNOWN_COLUMNS =
       List.of("id", "hostname", "ip", "mac", "status", "description");
 
   private final LessonDataSource dataSource;
@@ -54,13 +57,12 @@ public class Servers {
   @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
   @ResponseBody
   public List<Server> sort(@RequestParam String column) throws Exception {
-    List<Server> servers = new ArrayList<>();
-
     String sortColumn = column.toLowerCase(Locale.ROOT);
-    if (!SORTABLE_COLUMNS.contains(sortColumn)) {
+    if (!KNOWN_COLUMNS.contains(sortColumn)) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown sort column");
     }
 
+    List<Server> servers = new ArrayList<>();
     try (var connection = dataSource.getConnection()) {
       try (var statement =
           connection.prepareStatement(

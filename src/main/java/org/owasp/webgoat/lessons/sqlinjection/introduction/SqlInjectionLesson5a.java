@@ -42,7 +42,9 @@ public class SqlInjectionLesson5a implements AssignmentEndpoint {
   }
 
   protected AttackResult injectableQuery(String accountName) {
-    // The account name is bound as a parameter, it is never part of the statement text.
+    // last_name used to be concatenated straight into this WHERE clause, which is exactly what
+    // let "' or '1'='1" widen the match to every row. Binding it as a parameter means the
+    // submitted text is always compared as a literal last name, never parsed as SQL syntax.
     String query = "SELECT * FROM user_data WHERE first_name = 'John' and last_name = ?";
     try (Connection connection = dataSource.getConnection()) {
       try (PreparedStatement statement =

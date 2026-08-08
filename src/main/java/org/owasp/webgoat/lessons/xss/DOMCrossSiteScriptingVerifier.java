@@ -38,13 +38,13 @@ public class DOMCrossSiteScriptingVerifier implements AssignmentEndpoint {
   @PostMapping("/CrossSiteScripting/dom-follow-up")
   @ResponseBody
   public AttackResult completed(@RequestParam String successMessage) {
-    String answer = (String) lessonSession.getValue("randValue");
-
-    if (answer != null && successMessage.equals(answer)) {
-      return success(this).feedback("xss-dom-message-success").build();
-    } else {
-      return failed(this).feedback("xss-dom-message-failure").build();
-    }
+    Object expected = lessonSession.getValue("randValue");
+    // A session that never reached the phone-home step has no expected value stored yet; treat
+    // that the same as a wrong answer instead of letting a null on either side compare equal.
+    boolean solved = expected != null && expected.equals(successMessage);
+    return solved
+        ? success(this).feedback("xss-dom-message-success").build()
+        : failed(this).feedback("xss-dom-message-failure").build();
   }
 }
 // something like ...

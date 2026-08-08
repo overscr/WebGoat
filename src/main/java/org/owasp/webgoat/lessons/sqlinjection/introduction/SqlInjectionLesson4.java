@@ -20,9 +20,6 @@ import org.springframework.web.bind.annotation.RestController;
     value = {"SqlStringInjectionHint4-1", "SqlStringInjectionHint4-2", "SqlStringInjectionHint4-3"})
 public class SqlInjectionLesson4 implements AssignmentEndpoint {
 
-  private static final String NOT_EXECUTED =
-      "Free-form SQL is not executed by this endpoint, the input is treated as data only.";
-
   private final LessonDataSource dataSource;
 
   public SqlInjectionLesson4(LessonDataSource dataSource) {
@@ -35,8 +32,10 @@ public class SqlInjectionLesson4 implements AssignmentEndpoint {
     return injectableQuery(query);
   }
 
+  // This assignment used to run the query parameter as a schema-altering statement (e.g. ALTER
+  // TABLE ... ADD phone), so a crafted submission could add a column. Client input never reaches
+  // a Statement here anymore, so the schema cannot be changed through this form.
   protected AttackResult injectableQuery(String query) {
-    // The submitted text is never handed to a Statement, so it cannot alter the schema.
-    return failed(this).output(NOT_EXECUTED).build();
+    return failed(this).output("This endpoint no longer executes client-supplied SQL.").build();
   }
 }

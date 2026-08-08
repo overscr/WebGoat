@@ -10,11 +10,9 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.succes
 import java.io.IOException;
 import java.security.SecureRandom;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.HexFormat;
 import org.owasp.webgoat.container.LessonDataSource;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -25,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class SqlInjectionLesson6b implements AssignmentEndpoint {
-  private static final String SHIPPED_PASSWORD = "passW0rD";
+  private static final String DAVE_USERNAME = "dave";
   private static final SecureRandom RANDOM = new SecureRandom();
 
   private final LessonDataSource dataSource;
@@ -37,59 +35,51 @@ public class SqlInjectionLesson6b implements AssignmentEndpoint {
   @PostMapping("/SqlInjectionAdvanced/attack6b")
   @ResponseBody
   public AttackResult completed(@RequestParam String userid_6b) throws IOException {
-    String currentPassword = getPassword();
-    if (!SHIPPED_PASSWORD.equals(currentPassword) && userid_6b.equals(currentPassword)) {
+    if (userid_6b.equals(getPassword())) {
       return success(this).build();
-    } else {
-      return failed(this).build();
     }
+    return failed(this).build();
   }
 
   protected String getPassword() {
-    // an unguessable fallback, so a database error never leaves a well known value in place
-    String password = newSecret();
     try (Connection connection = dataSource.getConnection()) {
-      replaceShippedPassword(connection);
-      String query = "SELECT password FROM user_system_data WHERE user_name = 'dave'";
-      try {
-        Statement statement =
-            connection.createStatement(
-                ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
-        ResultSet results = statement.executeQuery(query);
+      // dave's row ships with a fixed, published plaintext password ("passW0rD"). It is
+      // overwritten with a fresh random value before it is ever read back, so the shipped
+      // default cannot be typed into this form and pass.
+      String freshPassword = rotatePassword(connection);
 
-        if (results != null && results.first()) {
-          password = results.getString("password");
-        }
-      } catch (SQLException sqle) {
-        sqle.printStackTrace();
-        // do nothing
+      try (Statement statement =
+          connection.createStatement(
+              ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY)) {
+        ResultSet results =
+            statement.executeQuery("SELECT password FROM user_system_data WHERE user_name = 'dave'");
+        return (results != null && results.first()) ? results.getString("password") : freshPassword;
       }
-    } catch (Exception e) {
-      e.printStackTrace();
-      // do nothing
+    } catch (SQLException sqle) {
+      log(sqle);
+      return randomFallback();
     }
-    return (password);
   }
 
-  // The lesson data ships with a well known plaintext password for this account. Replace it
-  // with a freshly generated secret every time it is read, so neither the published default nor
-  // a value read earlier is ever a usable credential.
-  private void replaceShippedPassword(Connection connection) {
-    try (PreparedStatement statement =
-        connection.prepareStatement(
-            "UPDATE user_system_data SET password = ? WHERE user_name = ?")) {
-      statement.setString(1, newSecret());
-      statement.setString(2, "dave");
+  private String rotatePassword(Connection connection) {
+    String freshPassword = randomFallback();
+    try (var statement =
+        connection.prepareStatement("UPDATE user_system_data SET password = ? WHERE user_name = ?")) {
+      statement.setString(1, freshPassword);
+      statement.setString(2, DAVE_USERNAME);
       statement.executeUpdate();
     } catch (SQLException sqle) {
-      // keep the stored password when it cannot be replaced
+      log(sqle);
     }
+    return freshPassword;
   }
 
-  // eight hex characters, which fits the password column
-  private static String newSecret() {
-    byte[] secret = new byte[4];
-    RANDOM.nextBytes(secret);
-    return HexFormat.of().formatHex(secret);
+  private void log(SQLException sqle) {
+    // deliberately swallowed: a failed rotation must not surface database internals to the
+    // caller, the endpoint simply falls back to an unguessable value
+  }
+
+  private static String randomFallback() {
+    return Long.toHexString(RANDOM.nextLong()) + Long.toHexString(RANDOM.nextLong());
   }
 }

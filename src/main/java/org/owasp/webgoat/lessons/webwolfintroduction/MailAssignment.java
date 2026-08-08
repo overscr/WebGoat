@@ -51,6 +51,9 @@ public class MailAssignment implements AssignmentEndpoint {
               .title("Test messages from WebWolf")
               .contents(
                   "This is a test message from WebWolf, your unique code is: "
+                      // Previously just the reversed username - guessable by anyone who knew the
+                      // account name. This code is unrelated to the username and lives only in
+                      // server memory until it is redeemed below.
                       + uniqueCodes.get(webGoatUsername, UniqueCodes.MAIL))
               .sender("webgoat@owasp.org")
               .build();
@@ -74,10 +77,8 @@ public class MailAssignment implements AssignmentEndpoint {
   @PostMapping("/WebWolf/mail")
   @ResponseBody
   public AttackResult completed(@RequestParam String uniqueCode, @CurrentUsername String username) {
-    if (uniqueCodes.matches(username, UniqueCodes.MAIL, uniqueCode)) {
-      return success(this).build();
-    } else {
-      return failed(this).feedbackArgs("webwolf.code_incorrect").feedbackArgs(uniqueCode).build();
-    }
+    return uniqueCodes.matches(username, UniqueCodes.MAIL, uniqueCode)
+        ? success(this).build()
+        : failed(this).feedbackArgs("webwolf.code_incorrect").feedbackArgs(uniqueCode).build();
   }
 }

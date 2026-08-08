@@ -4,7 +4,6 @@
  */
 package org.owasp.webgoat.lessons.passwordreset;
 
-import static java.util.Optional.ofNullable;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.informationMessage;
 
 import java.util.HashMap;
@@ -79,16 +78,23 @@ public class SecurityQuestionAssignment implements AssignmentEndpoint {
   @PostMapping("/PasswordReset/SecurityQuestions")
   @ResponseBody
   public AttackResult completed(@RequestParam String question) {
-    // Selecting a security question is not a verification of the user, so this endpoint only
-    // explains why the chosen question is weak and never grants access. Unknown input is looked
-    // up safely and is never echoed back to the caller.
-    var answer = ofNullable(questions.get(question));
-    if (answer.isPresent()) {
-      triedQuestions.incr(question);
+    String explanation = questions.get(question);
+    if (explanation == null) {
+      // An unrecognized question is reported without echoing the raw parameter back, and does
+      // not count toward completion - there is nothing to critique about a question that was
+      // never offered.
+      return informationMessage(this)
+          .feedback("password-questions-one-successful")
+          .output("Unknown question, please try again...")
+          .build();
     }
+
+    triedQuestions.incr(question);
+    // Rating one weak question is only ever informational. This endpoint by itself never marks
+    // the assignment solved, regardless of how many distinct questions have been rated.
     return informationMessage(this)
         .feedback("password-questions-one-successful")
-        .output(answer.orElse("Unknown question, please try again..."))
+        .output(explanation)
         .build();
   }
 }

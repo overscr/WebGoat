@@ -8,49 +8,55 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Component;
 
 /**
- * Keeps the unique codes used by the WebWolf lessons. A code is generated with {@link SecureRandom}
- * and never leaves the server unless it is sent to the user it belongs to. Deriving it from the
- * username would make it predictable for anyone knowing that username. Each flow has its own code
- * so a code handed out in one flow cannot be replayed in another.
+ * Issues and checks the one-time codes WebWolf hands to a user to prove they control the mailbox
+ * or landing page a lesson sent them to. The old implementation derived the code by reversing the
+ * WebGoat username, which is public and trivially reversible again - so the "secret" was really
+ * just the username itself. A code minted here is unrelated to any identifier the user already
+ * has: it comes from {@link SecureRandom}, lives only in server memory, and is scoped to a single
+ * {@link Purpose} so a code obtained for one flow cannot be replayed against another.
  */
 @Component
 public class UniqueCodes {
 
-  public static final String MAIL = "mail";
-  public static final String PASSWORD_RESET = "password-reset";
-
-  private static final int CODE_LENGTH_IN_BYTES = 16;
-
-  private final SecureRandom secureRandom = new SecureRandom();
-  private final Map<String, String> codes = new ConcurrentHashMap<>();
-
-  /** Returns the code for this user and flow, generating a new one when there is none yet. */
-  public String get(String username, String flow) {
-    return codes.computeIfAbsent(key(username, flow), unused -> generate());
+  public enum Purpose {
+    MAIL,
+    PASSWORD_RESET
   }
 
-  /** Compares the given code with the one handed out to this user for this flow. */
-  public boolean matches(String username, String flow, String code) {
-    String expected = codes.get(key(username, flow));
-    if (expected == null || code == null) {
+  public static final String MAIL = Purpose.MAIL.name();
+  public static final String PASSWORD_RESET = Purpose.PASSWORD_RESET.name();
+
+  private static final int CODE_BYTES = 18;
+
+  private final SecureRandom random = new SecureRandom();
+  private final ConcurrentHashMap<String, String> issuedCodes = new ConcurrentHashMap<>();
+
+  /** Returns the code issued to this user for this purpose, minting one on first use. */
+  public String get(String username, String purpose) {
+    return issuedCodes.computeIfAbsent(slot(username, purpose), ignored -> mint());
+  }
+
+  /** True when {@code submittedCode} is exactly the code previously issued for this slot. */
+  public boolean matches(String username, String purpose, String submittedCode) {
+    String issued = issuedCodes.get(slot(username, purpose));
+    if (issued == null || submittedCode == null) {
       return false;
     }
     return MessageDigest.isEqual(
-        expected.getBytes(StandardCharsets.UTF_8), code.getBytes(StandardCharsets.UTF_8));
+        issued.getBytes(StandardCharsets.UTF_8), submittedCode.getBytes(StandardCharsets.UTF_8));
   }
 
-  private String key(String username, String flow) {
-    return flow + ":" + username;
+  private String slot(String username, String purpose) {
+    return purpose + '#' + username;
   }
 
-  private String generate() {
-    byte[] code = new byte[CODE_LENGTH_IN_BYTES];
-    secureRandom.nextBytes(code);
-    return Base64.getUrlEncoder().withoutPadding().encodeToString(code);
+  private String mint() {
+    byte[] raw = new byte[CODE_BYTES];
+    random.nextBytes(raw);
+    return Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
   }
 }

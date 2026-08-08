@@ -29,8 +29,6 @@ import org.springframework.web.bind.annotation.RestController;
     })
 public class SqlOnlyInputValidationOnKeywords implements AssignmentEndpoint {
 
-  private static final String QUERY = "SELECT * FROM user_data WHERE last_name = ?";
-
   private final LessonDataSource dataSource;
 
   public SqlOnlyInputValidationOnKeywords(LessonDataSource dataSource) {
@@ -41,48 +39,67 @@ public class SqlOnlyInputValidationOnKeywords implements AssignmentEndpoint {
   @ResponseBody
   public AttackResult attack(
       @RequestParam("userid_sql_only_input_validation_on_keywords") String userId) {
-    userId = userId.toUpperCase().replace("FROM", "").replace("SELECT", "");
-    if (userId.contains(" ")) {
+    // Stripping the SELECT/FROM keywords is a denylist, and denylists are brittle - a payload
+    // that never needs those words (or spells them with a comment in the middle) sails through.
+    // What actually stops injection here is that the value below is bound as a parameter, so
+    // whatever text survives the filter is compared as data, never parsed as SQL.
+    String sanitized = userId.toUpperCase().replace("FROM", "").replace("SELECT", "");
+    if (sanitized.contains(" ")) {
       return failed(this).feedback("SqlOnlyInputValidationOnKeywords-failed").build();
     }
-    // The account name is bound as a parameter, it never becomes part of the statement itself.
+
     try (Connection connection = dataSource.getConnection();
-        PreparedStatement statement = connection.prepareStatement(QUERY)) {
-      statement.setString(1, userId);
+        PreparedStatement statement =
+            connection.prepareStatement("SELECT * FROM user_data WHERE last_name = ?")) {
+      statement.setString(1, sanitized);
       try (ResultSet results = statement.executeQuery()) {
-        return failed(this).output(writeTable(results)).build();
+        return failed(this).output(renderAsHtml(results)).build();
       }
     } catch (SQLException e) {
       return failed(this).output(e.getMessage()).build();
     }
   }
 
-  private String writeTable(ResultSet results) throws SQLException {
+  private String renderAsHtml(ResultSet results) throws SQLException {
     ResultSetMetaData metaData = results.getMetaData();
-    int numberOfColumns = metaData.getColumnCount();
-    StringBuilder table = new StringBuilder("<p>");
-    boolean headerWritten = false;
+    int columnCount = metaData.getColumnCount();
 
+    StringBuilder html = new StringBuilder("<p>");
+    int rowCount = 0;
     while (results.next()) {
-      if (!headerWritten) {
-        for (int i = 1; i < (numberOfColumns + 1); i++) {
-          table.append(metaData.getColumnName(i));
-          table.append(", ");
-        }
-        table.append("<br />");
-        headerWritten = true;
+      if (rowCount == 0) {
+        appendRow(html, i -> columnLabel(metaData, i), columnCount);
       }
-      for (int i = 1; i < (numberOfColumns + 1); i++) {
-        table.append(results.getString(i));
-        table.append(", ");
-      }
-      table.append("<br />");
+      appendRow(html, i -> cellValue(results, i), columnCount);
+      rowCount++;
     }
 
-    if (!headerWritten) {
-      table.append("No results matched. Try Again.");
+    if (rowCount == 0) {
+      html.append("No results matched. Try Again.");
     }
-    table.append("</p>");
-    return table.toString();
+    return html.append("</p>").toString();
+  }
+
+  private void appendRow(StringBuilder html, java.util.function.IntFunction<String> cell, int columnCount) {
+    for (int i = 1; i <= columnCount; i++) {
+      html.append(cell.apply(i)).append(", ");
+    }
+    html.append("<br />");
+  }
+
+  private String columnLabel(ResultSetMetaData metaData, int index) {
+    try {
+      return metaData.getColumnName(index);
+    } catch (SQLException e) {
+      return "";
+    }
+  }
+
+  private String cellValue(ResultSet results, int index) {
+    try {
+      return results.getString(index);
+    } catch (SQLException e) {
+      return "";
+    }
   }
 }

@@ -35,10 +35,12 @@ public class LandingAssignment implements AssignmentEndpoint {
   @PostMapping("/WebWolf/landing")
   @ResponseBody
   public AttackResult click(String uniqueCode, @CurrentUsername String username) {
-    if (uniqueCodes.matches(username, UniqueCodes.PASSWORD_RESET, uniqueCode)) {
-      return success(this).build();
-    }
-    return failed(this).feedback("webwolf.landing_wrong").build();
+    // The code checked here was previously derivable from the username alone (reverse the
+    // string); it is now an unguessable value minted per user and never handed out anywhere the
+    // user themselves would not see it.
+    return uniqueCodes.matches(username, UniqueCodes.PASSWORD_RESET, uniqueCode)
+        ? success(this).build()
+        : failed(this).feedback("webwolf.landing_wrong").build();
   }
 
   @GetMapping("/WebWolf/landing/password-reset")

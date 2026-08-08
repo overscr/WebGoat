@@ -32,10 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 public class SqlInjectionLesson13 implements AssignmentEndpoint {
 
-  // Only servers which are visible in the overview may be looked up, otherwise this endpoint
-  // confirms the details of a server the user is not allowed to see.
-  private static final String QUERY =
-      "select ip from servers where ip = ? and hostname = ? and status <> 'out of order'";
+  private static final String PROD_HOSTNAME = "webgoat-prd";
 
   private final LessonDataSource dataSource;
 
@@ -46,15 +43,18 @@ public class SqlInjectionLesson13 implements AssignmentEndpoint {
   @PostMapping("/SqlInjectionMitigations/attack12a")
   @ResponseBody
   public AttackResult completed(@RequestParam String ip) {
+    // Retired servers are excluded from the overview page, so this lookup excludes them from the
+    // WHERE clause too; otherwise a caller could confirm the ip of a server they were never
+    // supposed to be able to see listed in the first place. ip and hostname both travel as bind
+    // parameters, never as concatenated text.
+    String query = "select ip from servers where ip = ? and hostname = ? and status <> 'out of order'";
     try (Connection connection = dataSource.getConnection();
-        PreparedStatement preparedStatement = connection.prepareStatement(QUERY)) {
-      preparedStatement.setString(1, ip);
-      preparedStatement.setString(2, "webgoat-prd");
-      ResultSet resultSet = preparedStatement.executeQuery();
-      if (resultSet.next()) {
-        return success(this).build();
+        PreparedStatement statement = connection.prepareStatement(query)) {
+      statement.setString(1, ip);
+      statement.setString(2, PROD_HOSTNAME);
+      try (ResultSet resultSet = statement.executeQuery()) {
+        return resultSet.next() ? success(this).build() : failed(this).build();
       }
-      return failed(this).build();
     } catch (SQLException e) {
       log.error("Failed", e);
       return failed(this).build();

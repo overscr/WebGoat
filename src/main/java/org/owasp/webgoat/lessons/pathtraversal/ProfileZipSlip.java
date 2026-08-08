@@ -13,6 +13,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.Enumeration;
@@ -70,29 +71,42 @@ public class ProfileZipSlip extends ProfileUploadBase {
     var currentImage = getProfilePictureAsBase64(username);
 
     try {
-      // The name supplied by the client may not steer the upload out of the temporary directory
-      var zipFileName = FilenameUtils.getName(file.getOriginalFilename());
-      var uploadedZipFile = tmpZipDirectory.resolve(zipFileName);
+      // Only the base name of the client-supplied filename is trusted for where the upload
+      // itself lands; a name like "../../../etc/passwd" is reduced to "passwd" here.
+      var safeUploadName = FilenameUtils.getName(file.getOriginalFilename());
+      var uploadedZipFile = tmpZipDirectory.resolve(safeUploadName);
       FileCopyUtils.copy(file.getBytes(), uploadedZipFile.toFile());
 
-      var extractionDirectory = tmpZipDirectory.toFile().getCanonicalFile();
+      var extractionRoot = tmpZipDirectory.toFile().getCanonicalFile().toPath();
       ZipFile zip = new ZipFile(uploadedZipFile.toFile());
       Enumeration<? extends ZipEntry> entries = zip.entries();
       while (entries.hasMoreElements()) {
-        ZipEntry e = entries.nextElement();
-        File f = new File(extractionDirectory, e.getName()).getCanonicalFile();
-        // An entry is never allowed to point outside of the directory it is extracted into
-        if (!f.toPath().startsWith(extractionDirectory.toPath())) {
+        ZipEntry entry = entries.nextElement();
+        Path destination = resolveWithinRoot(extractionRoot, entry.getName());
+        if (destination == null) {
+          // A zip-slip entry: its name resolves outside the directory we are extracting into
+          // (e.g. "../../etc/cron.d/evil"), so the archive is rejected instead of written.
           return failed(this).output("path-traversal-zip-slip.extracted").build();
         }
-        InputStream is = zip.getInputStream(e);
-        Files.copy(is, f.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        try (InputStream entryStream = zip.getInputStream(entry)) {
+          Files.copy(entryStream, destination, StandardCopyOption.REPLACE_EXISTING);
+        }
       }
 
       return isSolved(currentImage, getProfilePictureAsBase64(username));
     } catch (IOException e) {
       return failed(this).output(e.getMessage()).build();
     }
+  }
+
+  /**
+   * Resolves a zip entry name against the extraction root and returns the resulting path only if
+   * it is still contained within that root once path traversal segments are collapsed. Returns
+   * null for an entry that would land outside of it.
+   */
+  private Path resolveWithinRoot(Path extractionRoot, String entryName) throws IOException {
+    Path candidate = new File(extractionRoot.toFile(), entryName).getCanonicalFile().toPath();
+    return candidate.startsWith(extractionRoot) ? candidate : null;
   }
 
   private AttackResult isSolved(byte[] currentImage, byte[] newImage) {
