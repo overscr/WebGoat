@@ -69,5 +69,38 @@ require([
 	'backbone',
 	'bootstrap',
 	'goatApp/goatApp'], function($,jqueryVuln,jqueryui,_,Backbone,Bootstrap,Goat){
+
+    /*
+     * The server rejects a state-changing request that does not carry the CSRF token, so every
+     * request the application makes on the user's behalf has to present it. Spring writes the
+     * token into the XSRF-TOKEN cookie; this reads it back out and attaches it as a header.
+     *
+     * It is installed once, globally, rather than at each call site: lesson forms are submitted
+     * through jQuery by the lesson content view and Backbone's sync also goes through jQuery,
+     * so a single prefilter covers all of them and no future call site can forget it. Safe
+     * methods are skipped because Spring does not require a token for them, and cross-domain
+     * requests are skipped so the token is never handed to a third party.
+     */
+    var readXsrfToken = function () {
+        var match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
+        if (match) {
+            return decodeURIComponent(match[1]);
+        }
+        // The page also carries the token, which covers the case where the cookie has not been
+        // issued yet for this session.
+        var meta = document.querySelector('meta[name="_csrf"]');
+        return meta ? meta.getAttribute('content') : null;
+    };
+
+    $.ajaxPrefilter(function (options, originalOptions, jqXHR) {
+        if (options.crossDomain || /^(GET|HEAD|OPTIONS|TRACE)$/i.test(options.type || 'GET')) {
+            return;
+        }
+        var token = readXsrfToken();
+        if (token) {
+            jqXHR.setRequestHeader('X-XSRF-TOKEN', token);
+        }
+    });
+
     Goat.initApp();
 });

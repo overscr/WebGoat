@@ -7,6 +7,11 @@
     <meta http-equiv="Cache-Control" CONTENT="no-cache"/>
     <meta http-equiv="Cache-Control" CONTENT="no-store"/>
 
+    <!-- Resolving the token here also causes it to be written to the XSRF-TOKEN cookie, so a
+         freshly loaded page always has one available before it issues its first request. -->
+    <meta name="_csrf" th:content="${_csrf != null ? _csrf.token : ''}"/>
+    <meta name="_csrf_header" th:content="${_csrf != null ? _csrf.headerName : ''}"/>
+
     <!--  CSS -->
     <link rel="shortcut icon" th:href="@{/css/img/favicon.ico}" type="image/x-icon"/>
 
