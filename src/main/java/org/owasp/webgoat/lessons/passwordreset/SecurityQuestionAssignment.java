@@ -4,9 +4,8 @@
  */
 package org.owasp.webgoat.lessons.passwordreset;
 
-import static java.util.Optional.of;
+import static java.util.Optional.ofNullable;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.informationMessage;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -80,12 +79,12 @@ public class SecurityQuestionAssignment implements AssignmentEndpoint {
   @PostMapping("/PasswordReset/SecurityQuestions")
   @ResponseBody
   public AttackResult completed(@RequestParam String question) {
-    var answer = of(questions.get(question));
+    // Selecting a security question is not a verification of the user, so this endpoint only
+    // explains why the chosen question is weak and never grants access. Unknown input is looked
+    // up safely and is never echoed back to the caller.
+    var answer = ofNullable(questions.get(question));
     if (answer.isPresent()) {
       triedQuestions.incr(question);
-      if (triedQuestions.isComplete()) {
-        return success(this).output("<b>" + answer + "</b>").build();
-      }
     }
     return informationMessage(this)
         .feedback("password-questions-one-successful")

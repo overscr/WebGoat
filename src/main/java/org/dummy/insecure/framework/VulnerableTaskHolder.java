@@ -4,9 +4,6 @@
  */
 package org.dummy.insecure.framework;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
 import java.io.Serializable;
 import java.time.LocalDateTime;
@@ -41,9 +38,8 @@ public class VulnerableTaskHolder implements Serializable {
   }
 
   /**
-   * Execute a task when de-serializing a saved or received object.
-   *
-   * @author stupid develop
+   * Restore the state of a saved or received object. Deserialization only restores data, it never
+   * acts on it: running the task here would turn any untrusted stream into remote code execution.
    */
   private void readObject(ObjectInputStream stream) throws Exception {
     // unserialize data so taskName and taskAction are available
@@ -61,20 +57,7 @@ public class VulnerableTaskHolder implements Serializable {
       throw new IllegalArgumentException("outdated");
     }
 
-    // condition is here to prevent you from destroying the goat altogether
-    if ((taskAction.startsWith("sleep") || taskAction.startsWith("ping"))
-        && taskAction.length() < 22) {
-      log.info("about to execute: {}", taskAction);
-      try {
-        Process p = Runtime.getRuntime().exec(taskAction);
-        BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
-        String line = null;
-        while ((line = in.readLine()) != null) {
-          log.info(line);
-        }
-      } catch (IOException e) {
-        log.error("IO Exception", e);
-      }
-    }
+    // the task description is only restored, deserializing data may never run it
+    log.info("restored task action: {}", taskAction);
   }
 }

@@ -5,14 +5,12 @@
 package org.owasp.webgoat.lessons.passwordreset;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 import static org.springframework.util.StringUtils.hasText;
 
-import com.google.common.collect.Maps;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import org.owasp.webgoat.container.CurrentUsername;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -45,18 +43,22 @@ import org.springframework.web.servlet.ModelAndView;
 public class ResetLinkAssignment implements AssignmentEndpoint {
 
   private static final String VIEW_FORMATTER = "lessons/passwordreset/templates/%s.html";
-  static final String PASSWORD_TOM_9 =
-      "somethingVeryRandomWhichNoOneWillEverTypeInAsPasswordForTom";
   static final String TOM_EMAIL = "tom@webgoat-cloud.org";
-  static Map<String, String> userToTomResetLink = new HashMap<>();
-  static Map<String, String> usersToTomPassword = Maps.newHashMap();
-  static List<String> resetLinks = new ArrayList<>();
+  static List<String> resetLinks = new CopyOnWriteArrayList<>();
+  static Map<String, String> resetLinkToEmail = new ConcurrentHashMap<>();
 
+  // E-mail is not a confidential channel, so the notification below deliberately carries neither
+  // the reset token nor a link built from it. Anybody who can read the mailbox of an account would
+  // otherwise be able to take that account over, which is exactly what a reset token must prevent.
+  // The token stays on the server, bound to the account it was created for, and the owner of the
+  // account finishes the reset from within the application while signed in.
   static final String TEMPLATE =
       """
-      Hi, you requested a password reset link, please use this <a target='_blank'
-       href='http://%s/WebGoat/PasswordReset/reset/reset-password/%s'>link</a> to reset your
-       password.
+      Hello,
+
+      We received a request to change the password of your account. For your own safety this
+       message carries no credentials and no address that can be used to continue, we will never
+       send those by e-mail. Please sign in and change the password from your own account page.
 
       If you did not request this password change you can ignore this message.
       If you have any comments or questions, please do not hesitate to reach us at
@@ -68,15 +70,11 @@ public class ResetLinkAssignment implements AssignmentEndpoint {
 
   @PostMapping("/PasswordReset/reset/login")
   @ResponseBody
-  public AttackResult login(
-      @RequestParam String password, @RequestParam String email, @CurrentUsername String username) {
+  public AttackResult login(@RequestParam String password, @RequestParam String email) {
+    // A reset link is only delivered to the mailbox of the account it was created for and it can
+    // only be used by that account, the password of another account is therefore never known here.
     if (TOM_EMAIL.equals(email)) {
-      String passwordTom = usersToTomPassword.getOrDefault(username, PASSWORD_TOM_9);
-      if (passwordTom.equals(PASSWORD_TOM_9)) {
-        return failed(this).feedback("login_failed").build();
-      } else if (passwordTom.equals(password)) {
-        return success(this).build();
-      }
+      return failed(this).feedback("login_failed").build();
     }
     return failed(this).feedback("login_failed.tom").build();
   }
@@ -110,19 +108,30 @@ public class ResetLinkAssignment implements AssignmentEndpoint {
       modelAndView.setViewName(VIEW_FORMATTER.formatted("password_reset"));
       return modelAndView;
     }
-    if (!resetLinks.contains(form.getResetLink())) {
+    // A reset link is bound to the account it was created for: knowing the link of another account
+    // is not enough, only the owner of that account is allowed to change its password.
+    if (!belongsToUser(form.getResetLink(), username)) {
       modelAndView.setViewName(VIEW_FORMATTER.formatted("password_link_not_found"));
       return modelAndView;
     }
-    if (checkIfLinkIsFromTom(form.getResetLink(), username)) {
-      usersToTomPassword.put(username, form.getPassword());
-    }
+    // A reset link can be used only once.
+    resetLinks.remove(form.getResetLink());
+    resetLinkToEmail.remove(form.getResetLink());
     modelAndView.setViewName(VIEW_FORMATTER.formatted("success"));
     return modelAndView;
   }
 
-  private boolean checkIfLinkIsFromTom(String resetLinkFromForm, String username) {
-    String resetLink = userToTomResetLink.getOrDefault(username, "unknown");
-    return resetLink.equals(resetLinkFromForm);
+  private boolean belongsToUser(String resetLinkFromForm, String username) {
+    if (!hasText(resetLinkFromForm) || !hasText(username)) {
+      return false;
+    }
+    String email = resetLinkToEmail.get(resetLinkFromForm);
+    if (email == null) {
+      return false;
+    }
+    // The mail holding the link is delivered to the mailbox of the local part of the address, so
+    // only the user owning that mailbox may redeem it, regardless of the domain that was used.
+    int index = email.indexOf("@");
+    return username.equals(email.substring(0, index == -1 ? email.length() : index));
   }
 }

@@ -32,6 +32,11 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 public class SqlInjectionLesson13 implements AssignmentEndpoint {
 
+  // Only servers which are visible in the overview may be looked up, otherwise this endpoint
+  // confirms the details of a server the user is not allowed to see.
+  private static final String QUERY =
+      "select ip from servers where ip = ? and hostname = ? and status <> 'out of order'";
+
   private final LessonDataSource dataSource;
 
   public SqlInjectionLesson13(LessonDataSource dataSource) {
@@ -42,8 +47,7 @@ public class SqlInjectionLesson13 implements AssignmentEndpoint {
   @ResponseBody
   public AttackResult completed(@RequestParam String ip) {
     try (Connection connection = dataSource.getConnection();
-        PreparedStatement preparedStatement =
-            connection.prepareStatement("select ip from servers where ip = ? and hostname = ?")) {
+        PreparedStatement preparedStatement = connection.prepareStatement(QUERY)) {
       preparedStatement.setString(1, ip);
       preparedStatement.setString(2, "webgoat-prd");
       ResultSet resultSet = preparedStatement.executeQuery();

@@ -44,13 +44,17 @@ public class UserProfile {
     }
   }
 
+  /**
+   * The representation of a profile that may be handed to a client. The internal identifier and the
+   * role are server side details: exposing the identifier turns the profile into a guessable direct
+   * object reference and the role is an authorization attribute, so neither is part of the
+   * response.
+   */
   public Map<String, Object> profileToMap() {
     Map<String, Object> profileMap = new HashMap<>();
-    profileMap.put("userId", this.userId);
     profileMap.put("name", this.name);
     profileMap.put("color", this.color);
     profileMap.put("size", this.size);
-    profileMap.put("role", this.role);
     return profileMap;
   }
 

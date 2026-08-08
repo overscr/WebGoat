@@ -7,6 +7,8 @@ package org.owasp.webgoat.lessons.csrf;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import org.owasp.webgoat.container.CurrentUsername;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -23,10 +25,21 @@ public class CSRFLogin implements AssignmentEndpoint {
       path = "/csrf/login",
       produces = {"application/json"})
   @ResponseBody
-  public AttackResult completed(@CurrentUsername String username) {
-    if (username.startsWith("csrf")) {
+  public AttackResult completed(HttpServletRequest request, @CurrentUsername String username) {
+    if (username.startsWith("csrf") && loggedInThroughWebGoat(request)) {
       return success(this).feedback("csrf-login-success").build();
     }
     return failed(this).feedback("csrf-login-failed").feedbackArgs(username).build();
+  }
+
+  /**
+   * Only a session whose credentials were submitted by WebGoat's own login form counts, a session
+   * which was authenticated by another site or by registering an account was never a deliberate
+   * login by this user.
+   */
+  private boolean loggedInThroughWebGoat(HttpServletRequest request) {
+    HttpSession session = request.getSession(false);
+    return session != null
+        && Boolean.TRUE.equals(session.getAttribute(LoginCsrfFilter.LOGIN_FROM_WEBGOAT));
   }
 }

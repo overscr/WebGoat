@@ -13,6 +13,8 @@ import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.impl.TextCodec;
+import java.security.SecureRandom;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -41,7 +43,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class JWTRefreshEndpoint implements AssignmentEndpoint {
 
   public static final String PASSWORD = "bm5nhSkxCXZkKRy4";
-  private static final String JWT_PASSWORD = "bm5n3SkxCX4kKRy4";
+  // A dictionary-adjacent constant is not a signing key: it is readable straight out of the
+  // source, so requiring a valid signature would prove nothing. Generated fresh on startup.
+  private static final String JWT_PASSWORD = generateSigningKey();
+
+  private static String generateSigningKey() {
+    var key = new byte[64];
+    new SecureRandom().nextBytes(key);
+    return TextCodec.BASE64.encode(key);
+  }
   // Maps a refresh token to the user it was issued to. A refresh token only ever renews its own
   // owner's session -- otherwise holding any valid refresh token plus someone else's (possibly
   // expired) access token would be enough to mint a fresh token for that other, unrelated account.

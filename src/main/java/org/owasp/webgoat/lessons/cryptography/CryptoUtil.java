@@ -38,6 +38,18 @@ public class CryptoUtil {
     return keyPairGenerator.generateKeyPair();
   }
 
+  public static String getPublicKeyInPEM(KeyPair keyPair) {
+    String encodedString = "-----BEGIN PUBLIC KEY-----\n";
+    encodedString =
+        encodedString
+            + new String(
+                Base64.getEncoder().encode(keyPair.getPublic().getEncoded()),
+                Charset.forName("UTF-8"))
+            + "\n";
+    encodedString = encodedString + "-----END PUBLIC KEY-----\n";
+    return encodedString;
+  }
+
   public static String getPrivateKeyInPEM(KeyPair keyPair) {
     String encodedString = "-----BEGIN PRIVATE KEY-----\n";
     encodedString =
