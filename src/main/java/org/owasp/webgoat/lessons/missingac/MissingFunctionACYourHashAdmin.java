@@ -39,23 +39,23 @@ public class MissingFunctionACYourHashAdmin implements AssignmentEndpoint {
       path = "/access-control/user-hash-fix",
       produces = {"application/json"})
   @ResponseBody
-  public AttackResult admin(String userHash, @CurrentUsername String username) {
-    // current user should be in the DB and must hold the admin role, otherwise this endpoint
-    // gives away information only an administrator may see
-    var currentUser = userRepository.findByUsername(username);
-    if (currentUser == null || !currentUser.isAdmin()) {
+  public AttackResult admin(String userHash, @CurrentUsername String requester) {
+    // The caller identity must come from the authenticated session, never from a
+    // client-supplied parameter, and only an administrator may reach the check below.
+    var caller = userRepository.findByUsername(requester);
+    boolean requesterIsAdmin = caller != null && caller.isAdmin();
+    if (!requesterIsAdmin) {
       return failed(this).feedback("access-control.hash.close").build();
     }
 
-    var user = userRepository.findByUsername("Jerry");
-    if (user == null) {
+    var jerry = userRepository.findByUsername("Jerry");
+    if (jerry == null) {
       return failed(this).feedback("access-control.hash.close").build();
     }
-    var displayUser = new DisplayUser(user, PASSWORD_SALT_ADMIN);
-    if (displayUser.getUserHash().equals(userHash)) {
-      return success(this).feedback("access-control.hash.success").build();
-    } else {
-      return failed(this).feedback("access-control.hash.close").build();
-    }
+
+    var expectedHash = new DisplayUser(jerry, PASSWORD_SALT_ADMIN).getUserHash();
+    return expectedHash.equals(userHash)
+        ? success(this).feedback("access-control.hash.success").build()
+        : failed(this).feedback("access-control.hash.close").build();
   }
 }
