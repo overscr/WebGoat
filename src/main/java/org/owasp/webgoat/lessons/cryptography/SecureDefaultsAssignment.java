@@ -8,6 +8,8 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.util.Base64;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -24,6 +26,18 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class SecureDefaultsAssignment implements AssignmentEndpoint {
 
+  // The digest checked below used to be a literal, so it (and the plaintext it protects) was
+  // already public before this endpoint was ever called - the exact "secret left in a docker
+  // image" mistake this lesson is about. Minting the real value when the process starts is
+  // what leaving a password out of a shipped image actually looks like.
+  private static final String RUNTIME_SECRET = mintSecret();
+
+  private static String mintSecret() {
+    byte[] raw = new byte[32];
+    new SecureRandom().nextBytes(raw);
+    return Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
+  }
+
   @PostMapping("/crypto/secure/defaults")
   @ResponseBody
   public AttackResult completed(
@@ -32,8 +46,7 @@ public class SecureDefaultsAssignment implements AssignmentEndpoint {
     if (secretFileName != null && secretFileName.equals("default_secret")) {
       if (secretText != null
           && HashingAssignment.getHash(secretText, "SHA-256")
-              .equalsIgnoreCase(
-                  "34de66e5caf2cb69ff2bebdc1f3091ecf6296852446c718e38ebfa60e4aa75d2")) {
+              .equalsIgnoreCase(HashingAssignment.getHash(RUNTIME_SECRET, "SHA-256"))) {
         return success(this).feedback("crypto-secure-defaults.success").build();
       } else {
         return failed(this).feedback("crypto-secure-defaults.messagenotok").build();
