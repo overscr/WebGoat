@@ -60,9 +60,11 @@ public class ShopEndpoint {
 
   @GetMapping(value = "/coupons", produces = MediaType.APPLICATION_JSON_VALUE)
   public CheckoutCodes all() {
+    // The super coupon is redeemable by name via getDiscountCode(), but it must never be
+    // handed out in this listing - broadcasting it here would give every visitor a 100%
+    // discount without them ever having to know the secret code (CWE-200).
     List<CheckoutCode> all = Lists.newArrayList();
     all.addAll(this.checkoutCodes.getCodes());
-    all.add(new CheckoutCode(ClientSideFilteringFreeAssignment.SUPER_COUPON_CODE, 100));
     return new CheckoutCodes(all);
   }
 }

@@ -33,6 +33,11 @@ import org.xml.sax.InputSource;
 @Slf4j
 public class Salaries {
 
+  // Neville Bartholomew, the CEO. The lesson narrative is explicit that the requesting
+  // user (Moe Stooge, CSO) has access to every other employee's record but not this one -
+  // so the server must never place it on the wire, regardless of what the client renders.
+  private static final String RESTRICTED_USER_ID = "112";
+
   @Value("${webgoat.user.directory}")
   private String webGoatHomeDirectory;
 
@@ -84,6 +89,10 @@ public class Salaries {
         Node node = nodes.item(i);
         employeeJson.put(node.getNodeName(), node.getTextContent());
       }
+      // Server-side authorization filter: strip any employee this requester is not
+      // allowed to view before the response ever leaves the server. The client is not
+      // trusted to hide this on its own.
+      json.removeIf(employee -> RESTRICTED_USER_ID.equals(employee.get("UserID")));
     } catch (XPathExpressionException e) {
       log.error("Unable to parse xml", e);
     } catch (IOException e) {
