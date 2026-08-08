@@ -6,6 +6,8 @@ package org.owasp.webgoat.lessons.sqlinjection.mitigation;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +27,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("SqlInjectionMitigations/servers")
 @Slf4j
 public class Servers {
+
+  /**
+   * An ORDER BY target is an identifier, not a value, so it can never be supplied as a bind
+   * parameter. The only safe construction is to map the request onto a fixed set of known columns
+   * and to build the statement from the matched constant rather than from the request text.
+   */
+  private static final Set<String> SORTABLE_COLUMNS =
+      Set.of("id", "hostname", "ip", "mac", "status", "description");
 
   private final LessonDataSource dataSource;
 
@@ -48,13 +58,14 @@ public class Servers {
   @ResponseBody
   public List<Server> sort(@RequestParam String column) throws Exception {
     List<Server> servers = new ArrayList<>();
+    String orderBy = resolveSortColumn(column);
 
     try (var connection = dataSource.getConnection()) {
       try (var statement =
           connection.prepareStatement(
               "select id, hostname, ip, mac, status, description from SERVERS where status <> 'out"
                   + " of order' order by "
-                  + column)) {
+                  + orderBy)) {
         try (var rs = statement.executeQuery()) {
           while (rs.next()) {
             Server server =
@@ -71,5 +82,16 @@ public class Servers {
       }
     }
     return servers;
+  }
+
+  private static String resolveSortColumn(String requested) {
+    if (requested == null) {
+      return "id";
+    }
+    String candidate = requested.trim().toLowerCase(Locale.ROOT);
+    // Anything the table does not actually have — including a nested CASE expression used to
+    // ask the database yes/no questions — falls back to the default ordering instead of being
+    // concatenated into the statement.
+    return SORTABLE_COLUMNS.contains(candidate) ? candidate : "id";
   }
 }

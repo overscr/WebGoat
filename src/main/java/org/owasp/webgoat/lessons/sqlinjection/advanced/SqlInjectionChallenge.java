@@ -51,10 +51,14 @@ public class SqlInjectionChallenge implements AssignmentEndpoint {
     if (attackResult == null) {
 
       try (Connection connection = dataSource.getConnection()) {
-        String checkUserQuery =
-            "select userid from sql_challenge_users where userid = '" + username + "'";
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery(checkUserQuery);
+        // Binding the requested user id removes the blind-inference oracle: a registration
+        // attempt such as "tom' AND substring(password,1,1)='t" is now looked up verbatim and
+        // simply does not exist, so it can no longer leak tom's password one character at a
+        // time through the "user already exists" response.
+        String checkUserQuery = "select userid from sql_challenge_users where userid = ?";
+        PreparedStatement statement = connection.prepareStatement(checkUserQuery);
+        statement.setString(1, username);
+        ResultSet resultSet = statement.executeQuery();
 
         if (resultSet.next()) {
           attackResult = failed(this).feedback("user.exists").feedbackArgs(username).build();
