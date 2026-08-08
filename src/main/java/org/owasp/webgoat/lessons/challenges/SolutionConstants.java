@@ -6,6 +6,10 @@ package org.owasp.webgoat.lessons.challenges;
 
 public interface SolutionConstants {
 
-  // TODO should be random generated when starting the server
-  String PASSWORD = "!!webgoat_admin_1234!!";
+  /**
+   * The administrator credential used to be a literal in the source, so it was known to anyone
+   * who read the repository and identical on every deployment. It is generated from {@link
+   * java.security.SecureRandom} when the server starts and never written down anywhere else.
+   */
+  String PASSWORD = SolutionSecrets.newAdminPassword();
 }
