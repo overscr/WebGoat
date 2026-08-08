@@ -10,12 +10,14 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.succes
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.commons.lang3.StringUtils;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
 import org.owasp.webgoat.container.assignments.AttackResult;
-import org.owasp.webgoat.lessons.spoofcookie.encoders.EncDec;
 import org.springframework.web.bind.UnsatisfiedServletRequestParameterException;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -42,6 +44,9 @@ public class SpoofCookieAssignment implements AssignmentEndpoint {
 
   private static final Map<String, String> users =
       Map.of("webgoat", "webgoat", "admin", "admin", ATTACK_USERNAME, "apasswordfortom");
+
+  private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+  private final Map<String, String> issuedTokens = new ConcurrentHashMap<>();
 
   @PostMapping(path = "/SpoofCookie/login")
   @ResponseBody
@@ -76,7 +81,7 @@ public class SpoofCookieAssignment implements AssignmentEndpoint {
 
     String authPassword = users.getOrDefault(lowerCasedUsername, "");
     if (!authPassword.isBlank() && authPassword.equals(password)) {
-      String newCookieValue = EncDec.encode(lowerCasedUsername);
+      String newCookieValue = issueSessionToken(lowerCasedUsername);
       Cookie newCookie = new Cookie(COOKIE_NAME, newCookieValue);
       newCookie.setPath("/WebGoat");
       newCookie.setSecure(true);
@@ -90,13 +95,25 @@ public class SpoofCookieAssignment implements AssignmentEndpoint {
     return informationMessage(this).feedback("spoofcookie.wrong-login").build();
   }
 
+  /**
+   * Issues an opaque session token for a user who has just proved their password.
+   *
+   * <p>The cookie used to carry a reversible encoding of the username, so anyone could decode their
+   * own cookie, re-encode someone else's name and be logged in as them. The value handed out now
+   * carries no user data at all: it is random, and only the server knows who it belongs to.
+   */
+  private String issueSessionToken(String username) {
+    var token = new byte[32];
+    SECURE_RANDOM.nextBytes(token);
+    var cookieValue = Base64.getUrlEncoder().withoutPadding().encodeToString(token);
+    issuedTokens.put(cookieValue, username);
+    return cookieValue;
+  }
+
   private AttackResult cookieLoginFlow(String cookieValue) {
-    String cookieUsername;
-    try {
-      cookieUsername = EncDec.decode(cookieValue).toLowerCase();
-    } catch (Exception e) {
-      // for providing some instructive guidance, we won't return 4xx error here
-      return failed(this).output(e.getMessage()).build();
+    String cookieUsername = issuedTokens.get(cookieValue);
+    if (cookieUsername == null) {
+      return failed(this).feedback("spoofcookie.wrong-cookie").build();
     }
     if (users.containsKey(cookieUsername)) {
       if (cookieUsername.equals(ATTACK_USERNAME)) {

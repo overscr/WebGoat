@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.htmltampering;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -21,10 +20,15 @@ public class HtmlTamperingTask implements AssignmentEndpoint {
 
   @PostMapping("/HtmlTampering/task")
   @ResponseBody
+  private static final double UNIT_PRICE = 2999.99;
+
   public AttackResult completed(@RequestParam String QTY, @RequestParam String Total) {
-    if (Float.parseFloat(QTY) * 2999.99 > Float.parseFloat(Total) + 1) {
-      return success(this).feedback("html-tampering.tamper.success").build();
-    }
-    return failed(this).feedback("html-tampering.tamper.failure").build();
+    // The price is the server's to decide. The total that came back from the browser is ignored
+    // and recalculated, so editing it in the page buys nothing.
+    double total = Float.parseFloat(QTY) * UNIT_PRICE;
+    return failed(this)
+        .feedback("html-tampering.tamper.failure")
+        .output(String.format("%.2f", total))
+        .build();
   }
 }

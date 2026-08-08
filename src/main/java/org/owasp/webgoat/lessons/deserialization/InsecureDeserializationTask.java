@@ -39,8 +39,12 @@ public class InsecureDeserializationTask implements AssignmentEndpoint {
 
     b64token = token.replace('-', '+').replace('_', '/');
 
+    // Java deserialization runs code from whatever classes the stream names, so the stream is
+    // restricted to the one type this endpoint actually expects. Anything else -- in particular a
+    // gadget chain from the classpath -- is refused before it can be constructed.
     try (ObjectInputStream ois =
-        new ObjectInputStream(new ByteArrayInputStream(Base64.getDecoder().decode(b64token)))) {
+        new AllowListObjectInputStream(
+            new ByteArrayInputStream(Base64.getDecoder().decode(b64token)))) {
       before = System.currentTimeMillis();
       Object o = ois.readObject();
       if (!(o instanceof VulnerableTaskHolder)) {
