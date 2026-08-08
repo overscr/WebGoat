@@ -13,11 +13,10 @@ import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
@@ -43,7 +42,10 @@ public class JWTRefreshEndpoint implements AssignmentEndpoint {
 
   public static final String PASSWORD = "bm5nhSkxCXZkKRy4";
   private static final String JWT_PASSWORD = "bm5n3SkxCX4kKRy4";
-  private static final List<String> validRefreshTokens = new ArrayList<>();
+  // Maps a refresh token to the user it was issued to. A refresh token only ever renews its own
+  // owner's session -- otherwise holding any valid refresh token plus someone else's (possibly
+  // expired) access token would be enough to mint a fresh token for that other, unrelated account.
+  private static final Map<String, String> validRefreshTokens = new ConcurrentHashMap<>();
 
   @PostMapping(
       value = "/JWT/refresh/login",
@@ -73,7 +75,7 @@ public class JWTRefreshEndpoint implements AssignmentEndpoint {
             .compact();
     Map<String, Object> tokenJson = new HashMap<>();
     String refreshToken = RandomStringUtils.randomAlphabetic(20);
-    validRefreshTokens.add(refreshToken);
+    validRefreshTokens.put(refreshToken, user);
     tokenJson.put("access_token", token);
     tokenJson.put("refresh_token", refreshToken);
     return tokenJson;
@@ -123,15 +125,20 @@ public class JWTRefreshEndpoint implements AssignmentEndpoint {
     } catch (ExpiredJwtException e) {
       user = (String) e.getClaims().get("user");
       refreshToken = (String) json.get("refresh_token");
+    } catch (JwtException e) {
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
 
-    if (user == null || refreshToken == null) {
+    // The refresh token has to belong to the same user named in the access token being renewed.
+    // Without this check, anyone holding a valid refresh token for their own account could pair
+    // it with someone else's leaked (even expired) access token to mint a fresh token for that
+    // other, more privileged account.
+    String refreshTokenOwner = user == null ? null : validRefreshTokens.get(refreshToken);
+    if (user == null || refreshToken == null || !user.equals(refreshTokenOwner)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-    } else if (validRefreshTokens.contains(refreshToken)) {
+    } else {
       validRefreshTokens.remove(refreshToken);
       return ok(createNewTokens(user));
-    } else {
-      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
   }
 }

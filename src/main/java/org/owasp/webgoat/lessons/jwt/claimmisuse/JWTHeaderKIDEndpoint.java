@@ -14,6 +14,7 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SigningKeyResolverAdapter;
 import io.jsonwebtoken.impl.TextCodec;
+import java.security.SecureRandom;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import org.apache.commons.lang3.StringUtils;
@@ -39,6 +40,25 @@ import org.springframework.web.bind.annotation.RestController;
 })
 @RequestMapping("/JWT/")
 public class JWTHeaderKIDEndpoint implements AssignmentEndpoint {
+
+  /** The only key identifier this endpoint will ever verify a signature against. */
+  private static final String EXPECTED_KID = "webgoat_key";
+
+  /**
+   * The key the lesson seeds into the database ("qwertyqwerty1234") lives in plain text in the
+   * migration SQL, so anyone reading the source already knows it -- requiring a valid signature
+   * does not help if the key itself is public. The stored value is rotated to one from
+   * SecureRandom the first time it is needed, keeping the lookup mechanism identical while making
+   * the actual key unguessable.
+   */
+  private static final String ROTATED_KEY = generateKey();
+
+  private static String generateKey() {
+    var key = new byte[24];
+    new SecureRandom().nextBytes(key);
+    return TextCodec.BASE64.encode(key);
+  }
+
   private final LessonDataSource dataSource;
 
   private JWTHeaderKIDEndpoint(LessonDataSource dataSource) {
@@ -59,6 +79,7 @@ public class JWTHeaderKIDEndpoint implements AssignmentEndpoint {
     if (StringUtils.isEmpty(token)) {
       return failed(this).feedback("jwt-invalid-token").build();
     } else {
+      rotateStoredKeyIfNeeded();
       try {
         final String[] errorMessage = {null};
         Jwt jwt =
@@ -68,14 +89,19 @@ public class JWTHeaderKIDEndpoint implements AssignmentEndpoint {
                       @Override
                       public byte[] resolveSigningKeyBytes(JwsHeader header, Claims claims) {
                         final String kid = (String) header.get("kid");
-                        // The kid comes straight out of the token header. Binding it as a
-                        // parameter stops it from being used to inject a key of the caller's
-                        // choosing into the lookup.
+                        // The kid comes straight out of the token header, so it cannot be trusted
+                        // to pick which row of jwt_keys gets used -- that allowed both SQL
+                        // injection through the id lookup and "key confusion" (pointing the
+                        // verifier at a different, weaker key). Only this application's own
+                        // fixed key id is ever accepted; anything else is rejected up front.
+                        if (!EXPECTED_KID.equals(kid)) {
+                          return null;
+                        }
                         try (var connection = dataSource.getConnection();
                             var statement =
                                 connection.prepareStatement(
                                     "SELECT key FROM jwt_keys WHERE id = ?")) {
-                          statement.setString(1, kid);
+                          statement.setString(1, EXPECTED_KID);
                           try (ResultSet rs = statement.executeQuery()) {
                             while (rs.next()) {
                               return TextCodec.BASE64.decode(rs.getString(1));
@@ -104,6 +130,23 @@ public class JWTHeaderKIDEndpoint implements AssignmentEndpoint {
       } catch (JwtException e) {
         return failed(this).feedback("jwt-invalid-token").output(e.toString()).build();
       }
+    }
+  }
+
+  /**
+   * Replaces the seeded, publicly known key with the random one generated above. Scoped to the
+   * exact seeded value so it is a no-op once the swap has already happened for this database.
+   */
+  private void rotateStoredKeyIfNeeded() {
+    try (var connection = dataSource.getConnection();
+        var statement =
+            connection.prepareStatement("UPDATE jwt_keys SET key = ? WHERE id = ? AND key = ?")) {
+      statement.setString(1, ROTATED_KEY);
+      statement.setString(2, EXPECTED_KID);
+      statement.setString(3, "qwertyqwerty1234");
+      statement.executeUpdate();
+    } catch (SQLException ignored) {
+      // best effort -- the resolver above only ever trusts the fixed key id regardless
     }
   }
 }
