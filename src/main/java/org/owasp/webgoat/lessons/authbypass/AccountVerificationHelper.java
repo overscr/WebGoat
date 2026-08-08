@@ -55,23 +55,27 @@ public class AccountVerificationHelper {
   // end of cheating check ... the method below is the one of real interest. Can you find the flaw?
 
   public boolean verifyAccount(Integer userId, HashMap<String, String> submittedQuestions) {
-    // short circuit if no questions are submitted
-    if (submittedQuestions.entrySet().size() != secQuestionStore.get(verifyUserId).size()) {
+    Map<String, String> expectedAnswers = secQuestionStore.get(verifyUserId);
+    if (expectedAnswers == null) {
       return false;
     }
 
-    if (submittedQuestions.containsKey("secQuestion0")
-        && !submittedQuestions
-            .get("secQuestion0")
-            .equals(secQuestionStore.get(verifyUserId).get("secQuestion0"))) {
+    // short circuit if the number of submitted answers does not match
+    if (submittedQuestions.entrySet().size() != expectedAnswers.size()) {
       return false;
     }
 
-    if (submittedQuestions.containsKey("secQuestion1")
-        && !submittedQuestions
-            .get("secQuestion1")
-            .equals(secQuestionStore.get(verifyUserId).get("secQuestion1"))) {
-      return false;
+    // Every expected question must actually be present and answered correctly. The previous
+    // implementation only validated a question when the submitted map *contained* its key
+    // (`containsKey(...) && ...`), so simply renaming/omitting the expected parameters (while
+    // still submitting the right number of them) skipped every real check and fell through to
+    // `return true`. Iterating over the known-good answers instead of the attacker-controlled
+    // submission means a missing or renamed answer is always treated as incorrect.
+    for (Map.Entry<String, String> expected : expectedAnswers.entrySet()) {
+      String submittedAnswer = submittedQuestions.get(expected.getKey());
+      if (submittedAnswer == null || !submittedAnswer.equals(expected.getValue())) {
+        return false;
+      }
     }
 
     // else

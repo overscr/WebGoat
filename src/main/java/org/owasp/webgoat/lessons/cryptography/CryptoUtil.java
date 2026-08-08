@@ -4,7 +4,6 @@
  */
 package org.owasp.webgoat.lessons.cryptography;
 
-import java.math.BigInteger;
 import java.nio.charset.Charset;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyFactory;
@@ -13,7 +12,6 @@ import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.security.SecureRandom;
 import java.security.Signature;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.InvalidKeySpecException;
@@ -26,22 +24,17 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class CryptoUtil {
 
-  private static final BigInteger[] FERMAT_PRIMES = {
-    BigInteger.valueOf(3),
-    BigInteger.valueOf(5),
-    BigInteger.valueOf(17),
-    BigInteger.valueOf(257),
-    BigInteger.valueOf(65537)
-  };
-
+  // The key pair used to be generated with a public exponent picked at random from a set of
+  // small Fermat primes (3, 5, 17, 257, 65537). A small public exponent such as e=3 or e=5 is a
+  // well known cryptographic weakness (CWE-780) that has enabled real-world RSA signature
+  // forgery attacks against implementations with imperfect padding checks. The only exponent
+  // that should ever be used is the standard secure default, F4 (65537).
   public static KeyPair generateKeyPair()
       throws NoSuchAlgorithmException, InvalidAlgorithmParameterException {
     KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
     RSAKeyGenParameterSpec kpgSpec =
-        new RSAKeyGenParameterSpec(
-            2048, FERMAT_PRIMES[new SecureRandom().nextInt(FERMAT_PRIMES.length)]);
+        new RSAKeyGenParameterSpec(2048, RSAKeyGenParameterSpec.F4);
     keyPairGenerator.initialize(kpgSpec);
-    // keyPairGenerator.initialize(2048);
     return keyPairGenerator.generateKeyPair();
   }
 

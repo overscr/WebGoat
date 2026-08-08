@@ -4,6 +4,13 @@
  */
 package org.owasp.webgoat.lessons.challenges.challenge8;
 
+import static org.springframework.web.bind.annotation.RequestMethod.DELETE;
+import static org.springframework.web.bind.annotation.RequestMethod.GET;
+import static org.springframework.web.bind.annotation.RequestMethod.HEAD;
+import static org.springframework.web.bind.annotation.RequestMethod.PATCH;
+import static org.springframework.web.bind.annotation.RequestMethod.POST;
+import static org.springframework.web.bind.annotation.RequestMethod.PUT;
+
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.Map;
@@ -17,6 +24,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -37,22 +45,24 @@ public class Assignment8 implements AssignmentEndpoint {
 
   private final Flags flags;
 
-  @GetMapping(value = "/challenge/8/vote/{stars}", produces = MediaType.APPLICATION_JSON_VALUE)
+  // Previously this only rejected a literal GET request (request.getMethod().equals("GET")),
+  // relying on @GetMapping to restrict routing. Spring transparently routes HEAD requests to a
+  // GET-mapped handler, and HttpServletRequest#getMethod() then returns "HEAD" - which is not
+  // equal to "GET" - so the "you need to login" check was skipped entirely and the vote (and the
+  // flag) were handed out for free. There is no real login/session concept backing this demo
+  // endpoint, so the same response must be produced no matter which HTTP verb is used to reach
+  // it; the mapping is widened only so that the same, safe response is what every verb gets
+  // instead of a generic 405.
+  @RequestMapping(
+      method = {GET, HEAD, POST, PUT, DELETE, PATCH},
+      value = "/challenge/8/vote/{stars}",
+      produces = MediaType.APPLICATION_JSON_VALUE)
   @ResponseBody
   public ResponseEntity<?> vote(
       @PathVariable(value = "stars") int nrOfStars, HttpServletRequest request) {
-    // Simple implementation of VERB Based Authentication
-    String msg = "";
-    if (request.getMethod().equals("GET")) {
-      var json =
-          Map.of("error", true, "message", "Sorry but you need to login first in order to vote");
-      return ResponseEntity.status(200).body(json);
-    }
-    Integer allVotesForStar = votes.getOrDefault(nrOfStars, 0);
-    votes.put(nrOfStars, allVotesForStar + 1);
-    return ResponseEntity.ok()
-        .header("X-FlagController", "Thanks for voting, your flag is: " + flags.getFlag(8))
-        .build();
+    var json =
+        Map.of("error", true, "message", "Sorry but you need to login first in order to vote");
+    return ResponseEntity.status(200).body(json);
   }
 
   @GetMapping("/challenge/8/votes/")
