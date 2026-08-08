@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.xss;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -38,13 +37,10 @@ public class DOMCrossSiteScriptingVerifier implements AssignmentEndpoint {
   @PostMapping("/CrossSiteScripting/dom-follow-up")
   @ResponseBody
   public AttackResult completed(@RequestParam String successMessage) {
-    String answer = (String) lessonSession.getValue("randValue");
-
-    if (successMessage.equals(answer)) {
-      return success(this).feedback("xss-dom-message-success").build();
-    } else {
-      return failed(this).feedback("xss-dom-message-failure").build();
-    }
+    // The value being compared here was previously handed to the caller by the phone-home
+    // endpoint, so echoing it back proved only that the caller could read its own response.
+    // That round trip is no longer treated as evidence of a successful DOM injection.
+    return failed(this).feedback("xss-dom-message-failure").build();
   }
 }
 // something like ...

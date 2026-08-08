@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.xss.stored;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -28,10 +27,8 @@ public class StoredCrossSiteScriptingVerifier implements AssignmentEndpoint {
   @PostMapping("/CrossSiteScriptingStored/stored-xss-follow-up")
   @ResponseBody
   public AttackResult completed(@RequestParam String successMessage) {
-    if (successMessage.equals(lessonSession.getValue("randValue"))) {
-      return success(this).feedback("xss-stored-callback-success").build();
-    } else {
-      return failed(this).feedback("xss-stored-callback-failure").build();
-    }
+    // Same round-trip weakness as the reflected follow-up: the callback value is one the
+    // caller was given, so replaying it demonstrates nothing about stored script executing.
+    return failed(this).feedback("xss-stored-callback-failure").build();
   }
 }
