@@ -8,6 +8,7 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import com.thoughtworks.xstream.XStream;
+import com.thoughtworks.xstream.security.NoTypePermission;
 import org.apache.commons.lang3.StringUtils;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -25,6 +26,11 @@ public class VulnerableComponentsLesson implements AssignmentEndpoint {
   public @ResponseBody AttackResult completed(@RequestParam String payload) {
     XStream xstream = new XStream();
     xstream.setClassLoader(Contact.class.getClassLoader());
+    // XStream instantiates whatever type the document names unless told otherwise, which is what
+    // makes payloads such as CVE-2013-7285 work. Deny every type, then allow back only the ones
+    // this endpoint is meant to accept.
+    xstream.addPermission(NoTypePermission.NONE);
+    xstream.allowTypes(new Class[] {Contact.class, ContactImpl.class});
     xstream.alias("contact", ContactImpl.class);
     xstream.ignoreUnknownElements();
     Contact contact = null;
