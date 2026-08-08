@@ -73,6 +73,8 @@ public class HijackSessionAssignment implements AssignmentEndpoint {
     Cookie cookie = new Cookie(COOKIE_NAME, cookieValue);
     cookie.setPath("/WebGoat");
     cookie.setSecure(true);
+    // A script that could read this cookie could impersonate the session directly, so it is kept
+    // out of document.cookie and only ever travels in the HTTP request/response headers.
     cookie.setHttpOnly(true);
     response.addCookie(cookie);
   }

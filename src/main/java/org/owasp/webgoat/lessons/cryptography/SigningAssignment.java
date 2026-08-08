@@ -34,23 +34,25 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 public class SigningAssignment implements AssignmentEndpoint {
 
-  /*
-   * The key pair is generated per session and only the public part of it ever leaves the server.
-   * Handing out the private key would allow anyone to sign data on behalf of this application.
-   */
+  // This endpoint name is a holdover from when it literally returned the private key PEM to
+  // whoever asked. That let anyone forge a valid signature for this session without ever
+  // solving the lesson, since they held the same key the server used to verify against. It now
+  // hands back only the public half; the private key stays server-side in the session attribute.
   @RequestMapping(path = "/crypto/signing/getprivate", produces = MediaType.TEXT_HTML_VALUE)
   @ResponseBody
   public String getPublicKey(HttpServletRequest request)
       throws NoSuchAlgorithmException, InvalidAlgorithmParameterException {
 
-    String publicKey = (String) request.getSession().getAttribute("publicKeyString");
-    if (publicKey == null) {
-      KeyPair keyPair = CryptoUtil.generateKeyPair();
-      publicKey = CryptoUtil.getPublicKeyInPEM(keyPair);
-      request.getSession().setAttribute("publicKeyString", publicKey);
-      request.getSession().setAttribute("keyPair", keyPair);
+    String cachedPublicKey = (String) request.getSession().getAttribute("publicKeyString");
+    if (cachedPublicKey != null) {
+      return cachedPublicKey;
     }
-    return publicKey;
+
+    KeyPair keyPair = CryptoUtil.generateKeyPair();
+    String publicKeyPem = CryptoUtil.getPublicKeyInPEM(keyPair);
+    request.getSession().setAttribute("publicKeyString", publicKeyPem);
+    request.getSession().setAttribute("keyPair", keyPair);
+    return publicKeyPem;
   }
 
   @PostMapping("/crypto/signing/verify")
@@ -58,12 +60,15 @@ public class SigningAssignment implements AssignmentEndpoint {
   public AttackResult completed(
       HttpServletRequest request, @RequestParam String modulus, @RequestParam String signature) {
 
-    String tempModulus =
-        modulus; /* used to validate the modulus of the public key but might need to be corrected */
     KeyPair keyPair = (KeyPair) request.getSession().getAttribute("keyPair");
     if (keyPair == null) {
+      // No key was ever issued to this session, so there is nothing valid to check the
+      // submission against.
       return failed(this).feedback("crypto-signing.modulusnotok").build();
     }
+
+    String tempModulus =
+        modulus; /* used to validate the modulus of the public key but might need to be corrected */
     RSAPublicKey rsaPubKey = (RSAPublicKey) keyPair.getPublic();
     if (tempModulus.length() == 512) {
       tempModulus = "00".concat(tempModulus);

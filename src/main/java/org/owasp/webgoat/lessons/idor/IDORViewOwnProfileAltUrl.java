@@ -31,18 +31,19 @@ public class IDORViewOwnProfileAltUrl implements AssignmentEndpoint {
   @PostMapping("/IDOR/profile/alt-path")
   @ResponseBody
   public AttackResult completed(@RequestParam String url) {
+    // The submitted url is accepted but no longer parsed for an object id to authorize against:
+    // whichever id it names, the profile actually returned is always the one tied to the current
+    // session. That removes the alternate route the lesson used to offer for reaching another
+    // user's profile via a guessed path.
     String authUserId = (String) userSessionData.getValue("idor-authenticated-user-id");
     if (authUserId == null) {
       return failed(this).feedback("idor.view.own.profile.failure2").build();
     }
 
-    // The profile is resolved from the authenticated session, never from the path that the client
-    // submitted. The submitted value is deliberately not compared against the internal identifier:
-    // doing so would turn this endpoint into an oracle that confirms guessed object references.
-    UserProfile userProfile = new UserProfile(authUserId);
+    UserProfile ownProfile = new UserProfile(authUserId);
     return failed(this)
         .feedback("idor.view.own.profile.direct")
-        .output(userProfile.profileToMap().toString())
+        .output(ownProfile.profileToMap().toString())
         .build();
   }
 }

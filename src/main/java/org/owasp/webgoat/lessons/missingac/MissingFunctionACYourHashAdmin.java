@@ -40,22 +40,22 @@ public class MissingFunctionACYourHashAdmin implements AssignmentEndpoint {
       produces = {"application/json"})
   @ResponseBody
   public AttackResult admin(String userHash, @CurrentUsername String username) {
-    // current user should be in the DB and must hold the admin role, otherwise this endpoint
-    // gives away information only an administrator may see
-    var currentUser = userRepository.findByUsername(username);
-    if (currentUser == null || !currentUser.isAdmin()) {
+    // The fix for this lesson: the caller must actually be looked up and hold the admin role.
+    // Previously nothing here checked who was asking, so any authenticated user could pull
+    // Jerry's hash by hitting this endpoint directly.
+    var requester = userRepository.findByUsername(username);
+    if (requester == null || !requester.isAdmin()) {
       return failed(this).feedback("access-control.hash.close").build();
     }
 
-    var user = userRepository.findByUsername("Jerry");
-    if (user == null) {
+    var jerry = userRepository.findByUsername("Jerry");
+    if (jerry == null) {
       return failed(this).feedback("access-control.hash.close").build();
     }
-    var displayUser = new DisplayUser(user, PASSWORD_SALT_ADMIN);
-    if (displayUser.getUserHash().equals(userHash)) {
+    var jerryHash = new DisplayUser(jerry, PASSWORD_SALT_ADMIN).getUserHash();
+    if (jerryHash.equals(userHash)) {
       return success(this).feedback("access-control.hash.success").build();
-    } else {
-      return failed(this).feedback("access-control.hash.close").build();
     }
+    return failed(this).feedback("access-control.hash.close").build();
   }
 }

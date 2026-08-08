@@ -5,8 +5,9 @@
 package org.owasp.webgoat.lessons.spoofcookie.encoders;
 
 import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
+import java.security.InvalidKeyException;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Base64;
 import javax.crypto.Mac;
@@ -20,15 +21,13 @@ import javax.crypto.spec.SecretKeySpec;
 
 public class EncDec {
 
-  /*
-   * The cookie is only encoded, so it has to be authenticated as well. Without a keyed MAC anyone
-   * who obtains a cookie can decode it and mint a cookie for another user.
-   */
-  private static final String MAC_ALGORITHM = "HmacSHA256";
-  private static final byte[] MAC_KEY = generateKey();
-  private static final Base64.Encoder ENCODER = Base64.getUrlEncoder().withoutPadding();
-  private static final Base64.Decoder DECODER = Base64.getUrlDecoder();
-  private static final char SEPARATOR = '.';
+  // A reversible hex encoding is not authentication: anyone holding one cookie could decode it,
+  // change the plaintext to a different username and re-encode it into a cookie for another
+  // account. The value is now bound with a keyed HMAC generated fresh at startup, so a cookie
+  // cannot be forged without that server-only key, and altering either half invalidates it.
+  private static final String HMAC_ALGORITHM = "HmacSHA256";
+  private static final SecretKeySpec HMAC_KEY = newSigningKey();
+  private static final String FIELD_SEPARATOR = "|";
 
   private EncDec() {}
 
@@ -37,8 +36,9 @@ public class EncDec {
       return null;
     }
 
-    String payload = ENCODER.encodeToString(value.toLowerCase().getBytes(StandardCharsets.UTF_8));
-    return payload + SEPARATOR + ENCODER.encodeToString(mac(payload));
+    String data = toBase64(value.toLowerCase());
+    String tag = toBase64(sign(data));
+    return data + FIELD_SEPARATOR + tag;
   }
 
   public static String decode(final String encodedValue) throws IllegalArgumentException {
@@ -46,33 +46,41 @@ public class EncDec {
       return null;
     }
 
-    int separatorIndex = encodedValue.lastIndexOf(SEPARATOR);
-    if (separatorIndex < 0) {
+    String[] parts = encodedValue.split("\\" + FIELD_SEPARATOR, 2);
+    if (parts.length != 2) {
       throw new IllegalArgumentException("Cookie is not valid");
     }
 
-    String payload = encodedValue.substring(0, separatorIndex);
-    byte[] providedMac = DECODER.decode(encodedValue.substring(separatorIndex + 1));
-    if (!MessageDigest.isEqual(mac(payload), providedMac)) {
+    String data = parts[0];
+    byte[] expectedTag = sign(data);
+    byte[] actualTag = fromBase64(parts[1]);
+    if (!MessageDigest.isEqual(expectedTag, actualTag)) {
       throw new IllegalArgumentException("Cookie is not valid");
     }
-
-    return new String(DECODER.decode(payload), StandardCharsets.UTF_8);
+    return new String(fromBase64(data), StandardCharsets.UTF_8);
   }
 
-  private static byte[] mac(final String payload) {
+  private static byte[] sign(String data) {
     try {
-      Mac mac = Mac.getInstance(MAC_ALGORITHM);
-      mac.init(new SecretKeySpec(MAC_KEY, MAC_ALGORITHM));
-      return mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
-    } catch (GeneralSecurityException e) {
-      throw new IllegalStateException("Unable to authenticate the cookie", e);
+      Mac hmac = Mac.getInstance(HMAC_ALGORITHM);
+      hmac.init(HMAC_KEY);
+      return hmac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+    } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+      throw new IllegalStateException("Could not sign cookie value", e);
     }
   }
 
-  private static byte[] generateKey() {
-    byte[] key = new byte[32];
-    new SecureRandom().nextBytes(key);
-    return key;
+  private static String toBase64(String plain) {
+    return Base64.getUrlEncoder().withoutPadding().encodeToString(plain.getBytes(StandardCharsets.UTF_8));
+  }
+
+  private static byte[] fromBase64(String encoded) {
+    return Base64.getUrlDecoder().decode(encoded);
+  }
+
+  private static SecretKeySpec newSigningKey() {
+    byte[] rawKey = new byte[32];
+    new SecureRandom().nextBytes(rawKey);
+    return new SecretKeySpec(rawKey, HMAC_ALGORITHM);
   }
 }

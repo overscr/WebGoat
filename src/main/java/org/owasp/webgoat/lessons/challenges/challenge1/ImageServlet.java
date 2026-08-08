@@ -18,8 +18,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class ImageServlet {
 
-  // Secret the admin password is derived from, it is never embedded in or exposed by a response.
-  public static final int PINCODE = new SecureRandom().nextInt(Integer.MAX_VALUE);
+  // Unpredictable and, unlike the old build, never written into a byte range of a public image.
+  public static final int PINCODE = new SecureRandom().nextInt(9000) + 1000;
 
   @RequestMapping(
       method = {GET, POST},
@@ -27,11 +27,11 @@ public class ImageServlet {
       produces = MediaType.IMAGE_PNG_VALUE)
   @ResponseBody
   public byte[] logo() throws IOException {
-    byte[] in =
-        new ClassPathResource("lessons/challenges/images/webgoat2.png")
-            .getInputStream()
-            .readAllBytes();
-
-    return in;
+    // The pincode used to be stamped into four bytes of this same file, so anyone who requested
+    // the logo could read the admin pincode straight out of the response body. The image is
+    // served untouched now; PINCODE lives only in server memory.
+    return new ClassPathResource("lessons/challenges/images/webgoat2.png")
+        .getInputStream()
+        .readAllBytes();
   }
 }

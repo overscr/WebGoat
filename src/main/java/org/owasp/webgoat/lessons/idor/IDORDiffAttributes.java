@@ -25,14 +25,13 @@ public class IDORDiffAttributes implements AssignmentEndpoint {
   @PostMapping("/IDOR/diff-attributes")
   @ResponseBody
   public AttackResult completed(@RequestParam String attributes) {
-    attributes = attributes.trim();
-    String[] diffAttribs = attributes.split(",");
+    String[] diffAttribs = attributes.trim().split(",");
     if (diffAttribs.length < 2) {
       return failed(this).feedback("idor.diff.attributes.missing").build();
     }
-    // The profile representation that is handed to the client no longer carries attributes that
-    // are withheld from the page: the internal identifier and the authorization role stay on the
-    // server, so there is no undisclosed attribute left to report here.
+    // UserProfile#profileToMap no longer serializes the internal id or the role, so the JSON the
+    // page renders and the full server-side record can no longer be diffed against each other to
+    // find a field the UI was hiding.
     return failed(this).feedback("idor.diff.no.hidden.attributes").build();
   }
 }

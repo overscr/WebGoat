@@ -57,10 +57,9 @@ public class ShopEndpoint {
 
   @GetMapping(value = "/coupons", produces = MediaType.APPLICATION_JSON_VALUE)
   public CheckoutCodes all() {
-    // only the codes the shop actually hands out, the response never contains a code the
-    // customer is not supposed to know about
-    List<CheckoutCode> all = Lists.newArrayList();
-    all.addAll(this.checkoutCodes.getCodes());
-    return new CheckoutCodes(all);
+    // Advertises exactly the codes this shop is willing to honor. A hidden 100%-off code used
+    // to be appended here too, which let anyone browsing this listing lift it straight out of
+    // the response; the catalogue only ever reflects what's actually configured now.
+    return new CheckoutCodes(Lists.newArrayList(checkoutCodes.getCodes()));
   }
 }

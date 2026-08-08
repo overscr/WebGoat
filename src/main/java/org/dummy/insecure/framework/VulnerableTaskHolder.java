@@ -38,26 +38,28 @@ public class VulnerableTaskHolder implements Serializable {
   }
 
   /**
-   * Restore the state of a saved or received object. Deserialization only restores data, it never
-   * acts on it: running the task here would turn any untrusted stream into remote code execution.
+   * Rehydrate a task from a stream. A deserialization hook is not a place to run commands: an
+   * attacker who can craft the serialized bytes controls {@code taskAction} completely, and
+   * shelling out to it here would hand them command execution. So this only ever repopulates
+   * fields, it never launches a process for the caller.
    */
   private void readObject(ObjectInputStream stream) throws Exception {
-    // unserialize data so taskName and taskAction are available
     stream.defaultReadObject();
 
-    // do something with the data
-    log.info("restoring task: {}", taskName);
-    log.info("restoring time: {}", requestedExecutionTime);
+    log.info("deserialized task '{}' scheduled for {}", taskName, requestedExecutionTime);
 
-    if (requestedExecutionTime != null
-        && (requestedExecutionTime.isBefore(LocalDateTime.now().minusMinutes(10))
-            || requestedExecutionTime.isAfter(LocalDateTime.now()))) {
-      // do nothing is the time is not within 10 minutes after the object has been created
+    LocalDateTime now = LocalDateTime.now();
+    boolean expired =
+        requestedExecutionTime == null
+            || requestedExecutionTime.isBefore(now.minusMinutes(10))
+            || requestedExecutionTime.isAfter(now);
+    if (expired) {
       log.debug(this.toString());
       throw new IllegalArgumentException("outdated");
     }
 
-    // the task description is only restored, deserializing data may never run it
-    log.info("restored task action: {}", taskAction);
+    // taskAction is untrusted attacker-controlled content: it is logged for visibility and
+    // nothing else touches it, in particular it is never handed to a shell or process builder.
+    log.info("task action left unexecuted: {}", taskAction);
   }
 }

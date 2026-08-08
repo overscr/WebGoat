@@ -36,21 +36,28 @@ public class MissingFunctionACHiddenMenus implements AssignmentEndpoint {
   @ResponseBody
   public AttackResult completed(
       String hiddenMenu1, String hiddenMenu2, @CurrentUsername String username) {
-    // the administrative menu entries are no longer sent to the client, so knowing them is only
-    // meaningful for an administrator; the role is resolved server side, never from the request
-    var currentUser = userRepository.findByUsername(username);
-    if (currentUser == null || !currentUser.isAdmin()) {
+    // Hiding the "Users"/"Config" menu entries from the page for a non-admin is a UI nicety, not
+    // an access control decision. Anyone can still POST here directly, so the endpoint itself has
+    // to look the caller up and confirm the admin role before it treats the submitted answer as
+    // meaningful.
+    if (!requesterIsAdmin(username)) {
       return failed(this).feedback("access-control.hidden-menus.failure").output("").build();
     }
 
-    if ("Users".equals(hiddenMenu1) && "Config".equals(hiddenMenu2)) {
+    boolean correctOrder = "Users".equals(hiddenMenu1) && "Config".equals(hiddenMenu2);
+    boolean reversedOrder = "Config".equals(hiddenMenu1) && "Users".equals(hiddenMenu2);
+
+    if (correctOrder) {
       return success(this).output("").feedback("access-control.hidden-menus.success").build();
     }
-
-    if ("Config".equals(hiddenMenu1) && "Users".equals(hiddenMenu2)) {
+    if (reversedOrder) {
       return failed(this).output("").feedback("access-control.hidden-menus.close").build();
     }
-
     return failed(this).feedback("access-control.hidden-menus.failure").output("").build();
+  }
+
+  private boolean requesterIsAdmin(String username) {
+    User requester = userRepository.findByUsername(username);
+    return requester != null && requester.isAdmin();
   }
 }

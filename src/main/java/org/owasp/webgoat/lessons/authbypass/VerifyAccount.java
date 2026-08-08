@@ -55,9 +55,10 @@ public class VerifyAccount implements AssignmentEndpoint {
     }
 
     // else
-    Integer accountId = parseUserId(userId);
-    if (accountId != null
-        && verificationHelper.verifyAccount(accountId, (HashMap) submittedAnswers)) {
+    if (!isNumeric(userId)) {
+      return failed(this).feedback("verify-account.failed").build();
+    }
+    if (verificationHelper.verifyAccount(Integer.valueOf(userId), (HashMap) submittedAnswers)) {
       userSessionData.setValue("account-verified-id", userId);
       return success(this).feedback("verify-account.success").build();
     } else {
@@ -65,12 +66,18 @@ public class VerifyAccount implements AssignmentEndpoint {
     }
   }
 
-  private Integer parseUserId(String userId) {
-    try {
-      return Integer.valueOf(userId);
-    } catch (NumberFormatException e) {
-      return null;
+  /** Guards the {@code Integer.valueOf} call below against a non-numeric userId parameter. */
+  private boolean isNumeric(String userId) {
+    if (userId == null || userId.isEmpty()) {
+      return false;
     }
+    for (int i = 0; i < userId.length(); i++) {
+      char c = userId.charAt(i);
+      if (c < '0' || c > '9') {
+        return false;
+      }
+    }
+    return true;
   }
 
   private HashMap<String, String> parseSecQuestions(HttpServletRequest req) {

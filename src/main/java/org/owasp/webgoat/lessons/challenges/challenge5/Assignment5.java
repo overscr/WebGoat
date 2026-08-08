@@ -7,7 +7,6 @@ package org.owasp.webgoat.lessons.challenges.challenge5;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,12 +39,14 @@ public class Assignment5 implements AssignmentEndpoint {
       return failed(this).feedback("user.not.larry").feedbackArgs(username_login).build();
     }
     try (var connection = dataSource.getConnection()) {
-      PreparedStatement statement =
+      // userid/password travel as bind parameters now, never concatenated into the SQL text,
+      // so a quote in either field can't close the string literal and inject a condition.
+      var loginStatement =
           connection.prepareStatement(
               "select password from challenge_users where userid = ? and password = ?");
-      statement.setString(1, username_login);
-      statement.setString(2, password_login);
-      ResultSet resultSet = statement.executeQuery();
+      loginStatement.setString(1, username_login);
+      loginStatement.setString(2, password_login);
+      ResultSet resultSet = loginStatement.executeQuery();
 
       if (resultSet.next()) {
         return success(this).feedback("challenge.solved").feedbackArgs(flags.getFlag(5)).build();

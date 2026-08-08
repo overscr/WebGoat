@@ -33,13 +33,13 @@ public class CSRFLogin implements AssignmentEndpoint {
   }
 
   /**
-   * Only a session whose credentials were submitted by WebGoat's own login form counts, a session
-   * which was authenticated by another site or by registering an account was never a deliberate
-   * login by this user.
+   * A session only counts as a deliberate login when its credentials were actually submitted
+   * through WebGoat's own form; a session set up by a forged cross-site request is not one this
+   * user chose to start.
    */
   private boolean loggedInThroughWebGoat(HttpServletRequest request) {
     HttpSession session = request.getSession(false);
     return session != null
-        && Boolean.TRUE.equals(session.getAttribute(LoginCsrfFilter.LOGIN_FROM_WEBGOAT));
+        && Boolean.TRUE.equals(session.getAttribute(CsrfLoginGuardFilter.AUTHENTICATED_VIA_FORM));
   }
 }

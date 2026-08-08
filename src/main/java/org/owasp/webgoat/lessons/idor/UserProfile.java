@@ -44,12 +44,9 @@ public class UserProfile {
     }
   }
 
-  /**
-   * The representation of a profile that may be handed to a client. The internal identifier and the
-   * role are server side details: exposing the identifier turns the profile into a guessable direct
-   * object reference and the role is an authorization attribute, so neither is part of the
-   * response.
-   */
+  // Fields safe to hand to a browser. userId is deliberately excluded: it is the very value an
+  // IDOR attack guesses and increments, and role is an authorization decision, not profile data -
+  // neither belongs in a client-facing payload.
   public Map<String, Object> profileToMap() {
     Map<String, Object> profileMap = new HashMap<>();
     profileMap.put("name", this.name);

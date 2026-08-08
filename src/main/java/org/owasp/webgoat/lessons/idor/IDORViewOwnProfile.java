@@ -29,21 +29,19 @@ public class IDORViewOwnProfile {
   public Map<String, Object> invoke() {
     Map<String, Object> details = new HashMap<>();
     try {
-      Object authenticatedAs = userSessionData.getValue("idor-authenticated-as");
-      if (authenticatedAs != null && authenticatedAs.equals("tom")) {
-        // going to use session auth to view this one
-        String authUserId = (String) userSessionData.getValue("idor-authenticated-user-id");
-        UserProfile userProfile = new UserProfile(authUserId);
-        // the internal identifier and the authorization role stay on the server, the response
-        // only carries the attributes that belong to the profile itself
-        details.put("name", userProfile.getName());
-        details.put("color", userProfile.getColor());
-        details.put("size", userProfile.getSize());
-      } else {
+      if (!"tom".equals(userSessionData.getValue("idor-authenticated-as"))) {
         details.put(
             "error",
             "You do not have privileges to view the profile. Authenticate as tom first please.");
+        return details;
       }
+      String authUserId = (String) userSessionData.getValue("idor-authenticated-user-id");
+      UserProfile userProfile = new UserProfile(authUserId);
+      // userId and role are server-side bookkeeping, not profile content: leaving them out of
+      // this map keeps them out of the JSON the browser receives.
+      details.put("name", userProfile.getName());
+      details.put("color", userProfile.getColor());
+      details.put("size", userProfile.getSize());
     } catch (Exception ex) {
       log.error("something went wrong: {}", ex.getMessage());
     }

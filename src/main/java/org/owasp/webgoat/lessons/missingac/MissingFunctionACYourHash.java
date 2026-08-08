@@ -37,21 +37,19 @@ public class MissingFunctionACYourHash implements AssignmentEndpoint {
       produces = {"application/json"})
   @ResponseBody
   public AttackResult simple(String userHash, @CurrentUsername String username) {
-    // the hash of another account is administrative information, the role is resolved from the
-    // authenticated user and never from the request
-    var currentUser = userRepository.findByUsername(username);
-    if (currentUser == null || !currentUser.isAdmin()) {
+    User requester = userRepository.findByUsername(username);
+    boolean requesterIsAdmin = requester != null && requester.isAdmin();
+    // Jerry's hash is only meaningful to look up for an administrator; a non-admin caller gets
+    // the same generic failure whether or not the submitted hash happens to be right.
+    if (!requesterIsAdmin) {
       return failed(this).build();
     }
-    User user = userRepository.findByUsername("Jerry");
-    if (user == null) {
-      return failed(this).build();
-    }
-    DisplayUser displayUser = new DisplayUser(user, PASSWORD_SALT_SIMPLE);
-    if (displayUser.getUserHash().equals(userHash)) {
-      return success(this).feedback("access-control.hash.success").build();
-    } else {
-      return failed(this).build();
-    }
+
+    User jerry = userRepository.findByUsername("Jerry");
+    boolean hashMatches =
+        jerry != null && new DisplayUser(jerry, PASSWORD_SALT_SIMPLE).getUserHash().equals(userHash);
+    return hashMatches
+        ? success(this).feedback("access-control.hash.success").build()
+        : failed(this).build();
   }
 }

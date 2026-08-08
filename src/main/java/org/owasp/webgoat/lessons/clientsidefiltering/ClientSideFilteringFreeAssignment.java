@@ -30,8 +30,9 @@ public class ClientSideFilteringFreeAssignment implements AssignmentEndpoint {
   @PostMapping("/clientSideFiltering/getItForFree")
   @ResponseBody
   public AttackResult completed(@RequestParam String checkoutCode) {
-    // The discount belonging to a checkout code is determined by the server and no code gives a
-    // 100% discount, so an order can never be checked out for free.
+    // Every discount is looked up and applied server side against the codes ShopEndpoint
+    // actually issues; this endpoint itself never grants a discount just because a client
+    // asked for one, so there is no code string that checks out an order for free.
     return failed(this).build();
   }
 }
