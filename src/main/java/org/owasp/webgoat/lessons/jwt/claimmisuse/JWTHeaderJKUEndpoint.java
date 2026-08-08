@@ -37,6 +37,10 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class JWTHeaderJKUEndpoint implements AssignmentEndpoint {
 
+  /** The only key set this endpoint will verify tokens against. */
+  private static final String TRUSTED_JWKS_URL =
+      "http://localhost:8080/WebGoat/.well-known/jwks.json";
+
   @PostMapping("jku/follow/{user}")
   public @ResponseBody String follow(@PathVariable("user") String user) {
     if ("Jerry".equals(user)) {
@@ -53,8 +57,10 @@ public class JWTHeaderJKUEndpoint implements AssignmentEndpoint {
     } else {
       try {
         var decodedJWT = JWT.decode(token);
-        var jku = decodedJWT.getHeaderClaim("jku");
-        var jwkProvider = new JwkProviderBuilder(new URL(jku.asString())).build();
+        // The jku header is chosen by whoever minted the token, so it cannot be allowed to decide
+        // where the verification key is fetched from -- that lets anyone point the server at a key
+        // set they control. The trusted key set of this application is used instead.
+        var jwkProvider = new JwkProviderBuilder(new URL(TRUSTED_JWKS_URL)).build();
         var jwk = jwkProvider.get(decodedJWT.getKeyId());
         var algorithm = Algorithm.RSA256((RSAPublicKey) jwk.getPublicKey());
         JWT.require(algorithm).build().verify(decodedJWT);

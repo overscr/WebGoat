@@ -51,7 +51,12 @@ public class MissingFunctionACUsers {
       path = {"access-control/users"},
       consumes = "application/json")
   @ResponseBody
-  public ResponseEntity<List<DisplayUser>> usersService() {
+  public ResponseEntity<List<DisplayUser>> usersService(@CurrentUsername String username) {
+    // Listing every account is an administrative function. Hiding the menu entry that points
+    // here is not access control -- the endpoint has to check for itself.
+    if (!isAdmin(username)) {
+      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
     return ResponseEntity.ok(
         userRepository.findAllUsers().stream()
             .map(user -> new DisplayUser(user, PASSWORD_SALT_SIMPLE))
@@ -63,8 +68,7 @@ public class MissingFunctionACUsers {
       consumes = "application/json")
   @ResponseBody
   public ResponseEntity<List<DisplayUser>> usersFixed(@CurrentUsername String username) {
-    var currentUser = userRepository.findByUsername(username);
-    if (currentUser != null && currentUser.isAdmin()) {
+    if (isAdmin(username)) {
       return ResponseEntity.ok(
           userRepository.findAllUsers().stream()
               .map(user -> new DisplayUser(user, PASSWORD_SALT_ADMIN))
@@ -78,18 +82,30 @@ public class MissingFunctionACUsers {
       consumes = "application/json",
       produces = "application/json")
   @ResponseBody
-  public User addUser(@RequestBody User newUser) {
+  public ResponseEntity<User> addUser(
+      @RequestBody User newUser, @CurrentUsername String username) {
+    // Creating accounts is an administrative function too, and the admin flag is decided by the
+    // server: taking it from the request body let anyone register themselves an administrator.
+    if (!isAdmin(username)) {
+      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
     try {
+      newUser.setAdmin(false);
       userRepository.save(newUser);
-      return newUser;
+      return ResponseEntity.ok(newUser);
     } catch (Exception ex) {
       log.error("Error creating new User", ex);
-      return null;
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
     }
 
     // @RequestMapping(path = {"user/{username}","/"}, method = RequestMethod.DELETE, consumes =
     // "application/json", produces = "application/json")
     // TODO implement delete method with id param and authorization
 
+  }
+
+  private boolean isAdmin(String username) {
+    var currentUser = userRepository.findByUsername(username);
+    return currentUser != null && currentUser.isAdmin();
   }
 }
