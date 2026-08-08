@@ -18,6 +18,7 @@ import io.jsonwebtoken.impl.TextCodec;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
@@ -52,7 +53,16 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class JWTVotesEndpoint implements AssignmentEndpoint {
 
-  public static final String JWT_PASSWORD = TextCodec.BASE64.encode("victory");
+  // A dictionary word is not a signing key: it can be brute forced offline in seconds, after
+  // which anyone can mint a token with admin set to true. The key is generated per run instead.
+  public static final String JWT_PASSWORD = generateSigningKey();
+
+  private static String generateSigningKey() {
+    var key = new byte[64];
+    new SecureRandom().nextBytes(key);
+    return TextCodec.BASE64.encode(key);
+  }
+
   private static String validUsers = "TomJerrySylvester";
 
   private static int totalVotes = 38929;

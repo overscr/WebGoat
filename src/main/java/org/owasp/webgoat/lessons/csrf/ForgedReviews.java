@@ -80,6 +80,16 @@ public class ForgedReviews implements AssignmentEndpoint {
         (request.getHeader("referer") == null) ? "NULL" : request.getHeader("referer");
     final String[] refererArr = referer.split("/");
 
+    if (validateReq == null || !validateReq.equals(weakAntiCSRF)) {
+      return failed(this).feedback("csrf-you-forgot-something").build();
+    }
+    // A state changing request is only accepted when it demonstrably came from this application.
+    // A request with no Referer, or one naming a different host, is a cross site request and is
+    // rejected before the review is stored.
+    if ("NULL".equals(referer) || refererArr.length < 3 || !refererArr[2].equals(host)) {
+      return failed(this).feedback("csrf-you-forgot-something").build();
+    }
+
     Review review = new Review();
     review.setText(reviewText);
     review.setDateTime(LocalDateTime.now().format(fmt));
@@ -88,17 +98,7 @@ public class ForgedReviews implements AssignmentEndpoint {
     var reviews = userReviews.getOrDefault(username, new ArrayList<>());
     reviews.add(review);
     userReviews.put(username, reviews);
-    // short-circuit
-    if (validateReq == null || !validateReq.equals(weakAntiCSRF)) {
-      return failed(this).feedback("csrf-you-forgot-something").build();
-    }
-    // we have the spoofed files
-    if (referer != "NULL" && refererArr[2].equals(host)) {
-      return failed(this).feedback("csrf-same-host").build();
-    } else {
-      return success(this)
-          .feedback("csrf-review.success")
-          .build(); // feedback("xss-stored-comment-failure")
-    }
+
+    return failed(this).feedback("csrf-same-host").build();
   }
 }

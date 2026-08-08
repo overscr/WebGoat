@@ -9,17 +9,16 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.succes
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Map;
-import java.util.UUID;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
 import org.owasp.webgoat.container.assignments.AttackResult;
 import org.owasp.webgoat.container.session.LessonSession;
-import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -54,14 +53,11 @@ public class CSRFFeedback implements AssignmentEndpoint {
     } catch (IOException e) {
       return failed(this).feedback(ExceptionUtils.getStackTrace(e)).build();
     }
-    boolean correctCSRF =
-        requestContainsWebGoatCookie(request.getCookies())
-            && request.getContentType().contains(MediaType.TEXT_PLAIN_VALUE);
-    correctCSRF &= hostOrRefererDifferentHost(request);
-    if (correctCSRF) {
-      String flag = UUID.randomUUID().toString();
-      userSessionData.setValue("csrf-feedback", flag);
-      return success(this).feedback("csrf-feedback-success").feedbackArgs(flag).build();
+    // Posting feedback changes state, so the request has to come from this application. A cross
+    // site form post -- which is what the text/plain content type is used to smuggle past the
+    // browser's preflight -- is refused rather than rewarded with a flag.
+    if (isCrossSiteRequest(request)) {
+      return failed(this).feedback("csrf-feedback-failure").build();
     }
     return failed(this).build();
   }
@@ -76,26 +72,23 @@ public class CSRFFeedback implements AssignmentEndpoint {
     }
   }
 
-  private boolean hostOrRefererDifferentHost(HttpServletRequest request) {
-    String referer = request.getHeader("Referer");
+  private boolean isCrossSiteRequest(HttpServletRequest request) {
     String host = request.getHeader("Host");
-    if (referer != null) {
-      return !referer.contains(host);
-    } else {
+    String origin = request.getHeader("Origin");
+    String referer = request.getHeader("Referer");
+    String source = origin != null ? origin : referer;
+    // No Origin and no Referer means there is nothing to prove the request came from here, so it
+    // is treated as cross site rather than given the benefit of the doubt.
+    if (source == null || host == null) {
+      return true;
+    }
+    try {
+      return !host.equals(new URI(source).getAuthority());
+    } catch (URISyntaxException e) {
       return true;
     }
   }
 
-  private boolean requestContainsWebGoatCookie(Cookie[] cookies) {
-    if (cookies != null) {
-      for (Cookie c : cookies) {
-        if (c.getName().equals("JSESSIONID")) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
 
   /*
    * Solution:
