@@ -9,7 +9,6 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.succes
 import static org.owasp.webgoat.lessons.challenges.SolutionConstants.PASSWORD;
 
 import jakarta.servlet.http.HttpServletRequest;
-import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
@@ -75,8 +74,8 @@ public class Assignment1 implements AssignmentEndpoint {
   private String clientId(HttpServletRequest request) {
     String forwardedFor = request.getHeader("X-Forwarded-For");
     if (forwardedFor != null && !forwardedFor.isBlank()) {
-      return forwardedFor.split(",")[0].trim() + "-" + Instant.now().toEpochDay();
+      return forwardedFor.split(",")[0].trim();
     }
-    return request.getRemoteAddr() + "-" + Instant.now().toEpochDay();
+    return request.getRemoteAddr();
   }
 }
