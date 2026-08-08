@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.bypassrestrictions;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -35,30 +34,19 @@ public class BypassRestrictionsFrontendValidation implements AssignmentEndpoint 
     final String regex5 = "^\\d{5}$";
     final String regex6 = "^\\d{5}(-\\d{4})?$";
     final String regex7 = "^[2-9]\\d{2}-?\\d{3}-?\\d{4}$";
-    if (error > 0) {
+    // The browser applies these patterns before submitting, but a client can be told to skip
+    // that, so the same validation runs here. A field that does not match its pattern is
+    // rejected rather than being treated as an interesting result.
+    if (error > 0
+        || !field1.matches(regex1)
+        || !field2.matches(regex2)
+        || !field3.matches(regex3)
+        || !field4.matches(regex4)
+        || !field5.matches(regex5)
+        || !field6.matches(regex6)
+        || !field7.matches(regex7)) {
       return failed(this).build();
     }
-    if (field1.matches(regex1)) {
-      return failed(this).build();
-    }
-    if (field2.matches(regex2)) {
-      return failed(this).build();
-    }
-    if (field3.matches(regex3)) {
-      return failed(this).build();
-    }
-    if (field4.matches(regex4)) {
-      return failed(this).build();
-    }
-    if (field5.matches(regex5)) {
-      return failed(this).build();
-    }
-    if (field6.matches(regex6)) {
-      return failed(this).build();
-    }
-    if (field7.matches(regex7)) {
-      return failed(this).build();
-    }
-    return success(this).build();
+    return failed(this).build();
   }
 }

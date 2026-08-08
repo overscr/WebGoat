@@ -24,13 +24,10 @@ public class LogSpoofingTask implements AssignmentEndpoint {
     if (Strings.isEmpty(username)) {
       return failed(this).output(username).build();
     }
-    username = username.replace("\n", "<br/>");
-    if (username.contains("<p>") || username.contains("<div>")) {
-      return failed(this).output("Try to think of something simple ").build();
-    }
-    if (username.indexOf("<br/>") < username.indexOf("admin")) {
-      return success(this).output(username).build();
-    }
+    // Line breaks in user input are what let someone append a second, forged entry to the log.
+    // They are stripped rather than turned into markup, so one input can only ever produce one
+    // log line.
+    username = username.replaceAll("[\\r\\n]", "");
     return failed(this).output(username).build();
   }
 }

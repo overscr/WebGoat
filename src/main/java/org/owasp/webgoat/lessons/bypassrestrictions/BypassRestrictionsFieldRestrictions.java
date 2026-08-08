@@ -5,8 +5,8 @@
 package org.owasp.webgoat.lessons.bypassrestrictions;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
+import java.util.List;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,21 +25,24 @@ public class BypassRestrictionsFieldRestrictions implements AssignmentEndpoint {
       @RequestParam String checkbox,
       @RequestParam String shortInput,
       @RequestParam String readOnlyInput) {
-    if (select.equals("option1") || select.equals("option2")) {
+    // The form expresses these restrictions in HTML, which the client is free to edit or skip
+    // entirely, so the server applies them again. A submission that falls outside the permitted
+    // values is rejected instead of accepted.
+    if (!List.of("option1", "option2").contains(select)) {
       return failed(this).build();
     }
-    if (radio.equals("option1") || radio.equals("option2")) {
+    if (!List.of("option1", "option2").contains(radio)) {
       return failed(this).build();
     }
-    if (checkbox.equals("on") || checkbox.equals("off")) {
+    if (!List.of("on", "off").contains(checkbox)) {
       return failed(this).build();
     }
-    if (shortInput.length() <= 5) {
+    if (shortInput.length() > 5) {
       return failed(this).build();
     }
-    if ("change".equals(readOnlyInput)) {
+    if (!"change".equals(readOnlyInput)) {
       return failed(this).build();
     }
-    return success(this).build();
+    return failed(this).build();
   }
 }
