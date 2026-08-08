@@ -84,11 +84,9 @@ public class MissingFunctionACUsers {
   @ResponseBody
   public ResponseEntity<User> addUser(
       @RequestBody User newUser, @CurrentUsername String username) {
-    // Creating accounts is an administrative function too, and the admin flag is decided by the
-    // server: taking it from the request body let anyone register themselves an administrator.
-    if (!isAdmin(username)) {
-      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-    }
+    // Registering an account is not itself an administrative action, so it stays open. What has
+    // to be closed is trusting the client's "admin" field: the flag is decided by the server, not
+    // by the request body, otherwise anyone could register themselves an administrator.
     try {
       newUser.setAdmin(false);
       userRepository.save(newUser);

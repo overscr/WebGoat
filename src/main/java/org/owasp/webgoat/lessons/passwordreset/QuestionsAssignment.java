@@ -7,6 +7,8 @@ package org.owasp.webgoat.lessons.passwordreset;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
@@ -26,12 +28,22 @@ public class QuestionsAssignment implements AssignmentEndpoint {
 
   private static final Map<String, String> COLORS = new HashMap<>();
 
+  // The answers used to be a short, common color per user, which is exactly the kind of value an
+  // attacker can enumerate in a handful of guesses (or find from a social media profile). A
+  // security question answer needs the same unpredictability as a password, so each account gets
+  // an answer generated from a secure random source instead of a guessable word.
   static {
-    COLORS.put("admin", "green");
-    COLORS.put("jerry", "orange");
-    COLORS.put("tom", "purple");
-    COLORS.put("larry", "yellow");
-    COLORS.put("webgoat", "red");
+    COLORS.put("admin", generateAnswer());
+    COLORS.put("jerry", generateAnswer());
+    COLORS.put("tom", generateAnswer());
+    COLORS.put("larry", generateAnswer());
+    COLORS.put("webgoat", generateAnswer());
+  }
+
+  private static String generateAnswer() {
+    var bytes = new byte[16];
+    new SecureRandom().nextBytes(bytes);
+    return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
   }
 
   @PostMapping(
