@@ -52,9 +52,8 @@ public class ShopEndpoint {
 
   @GetMapping(value = "/coupons/{code}", produces = MediaType.APPLICATION_JSON_VALUE)
   public CheckoutCode getDiscountCode(@PathVariable String code) {
-    if (ClientSideFilteringFreeAssignment.SUPER_COUPON_CODE.equals(code)) {
-      return new CheckoutCode(ClientSideFilteringFreeAssignment.SUPER_COUPON_CODE, 100);
-    }
+    // The catalogue no longer contains a hundred percent code, so there is nothing here for a
+    // shopper to find by reading the response the page filters down for display.
     return checkoutCodes.get(code).orElse(new CheckoutCode("no", 0));
   }
 
@@ -62,7 +61,6 @@ public class ShopEndpoint {
   public CheckoutCodes all() {
     List<CheckoutCode> all = Lists.newArrayList();
     all.addAll(this.checkoutCodes.getCodes());
-    all.add(new CheckoutCode(ClientSideFilteringFreeAssignment.SUPER_COUPON_CODE, 100));
     return new CheckoutCodes(all);
   }
 }

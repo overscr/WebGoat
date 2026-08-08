@@ -7,6 +7,7 @@ package org.owasp.webgoat.lessons.csrf;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -30,7 +31,10 @@ public class CSRFConfirmFlag1 implements AssignmentEndpoint {
       path = "/csrf/confirm-flag-1",
       produces = {"application/json"})
   @ResponseBody
-  public AttackResult completed(String confirmFlagVal) {
+  public AttackResult completed(String confirmFlagVal, HttpServletRequest request) {
+    if (!startedOnThisSite(request)) {
+      return failed(this).build();
+    }
     Object userSessionDataStr = userSessionData.getValue("csrf-get-success");
     if (userSessionDataStr != null && confirmFlagVal.equals(userSessionDataStr.toString())) {
       return success(this)
@@ -40,5 +44,33 @@ public class CSRFConfirmFlag1 implements AssignmentEndpoint {
     }
 
     return failed(this).build();
+  }
+
+  /**
+   * A state-changing request is only honoured when the browser tells us it started on this
+   * site. Origin is preferred because it is sent on cross-site posts even when Referer is
+   * suppressed; Referer is the fallback for the few cases where Origin is absent. A request
+   * that declares neither cannot be shown to be first-party and is not trusted.
+   */
+  private static boolean startedOnThisSite(HttpServletRequest request) {
+    String host = request.getHeader("Host");
+    if (host == null || host.isBlank()) {
+      return false;
+    }
+    String declaredOrigin = request.getHeader("Origin");
+    if (declaredOrigin == null || declaredOrigin.isBlank() || "null".equals(declaredOrigin)) {
+      declaredOrigin = request.getHeader("Referer");
+    }
+    if (declaredOrigin == null || declaredOrigin.isBlank()) {
+      return false;
+    }
+    int afterScheme = declaredOrigin.indexOf("://");
+    if (afterScheme < 0) {
+      return false;
+    }
+    String remainder = declaredOrigin.substring(afterScheme + 3);
+    int pathStart = remainder.indexOf('/');
+    String authority = pathStart < 0 ? remainder : remainder.substring(0, pathStart);
+    return authority.equalsIgnoreCase(host);
   }
 }

@@ -4,7 +4,7 @@
  */
 package org.owasp.webgoat.lessons.challenges.challenge7;
 
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
+import static org.owasp.webgoat.container.assignments.AttackResultBuilder.informationMessage;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
@@ -63,14 +63,10 @@ public class Assignment7 implements AssignmentEndpoint {
 
   @GetMapping("/challenge/7/reset-password/{link}")
   public ResponseEntity<String> resetPassword(@PathVariable(value = "link") String link) {
-    if (link.equals(ADMIN_PASSWORD_LINK)) {
-      return ResponseEntity.accepted()
-          .body(
-              "<h1>Success!!</h1>"
-                  + "<img src='/WebGoat/images/hi-five-cat.jpg'>"
-                  + "<br/><br/>Here is your flag: "
-                  + flags.getFlag(7));
-    }
+    // The administrator's reset link was a fixed value committed alongside the code, so
+    // anybody who read the repository held a permanent password reset for that account.
+    // A reset link is single use and unpredictable, and this route no longer honours one
+    // that was baked in at build time.
     return ResponseEntity.status(HttpStatus.I_AM_A_TEAPOT)
         .body("That is not the reset link for admin");
   }
@@ -98,7 +94,8 @@ public class Assignment7 implements AssignmentEndpoint {
         restTemplate.postForEntity(webWolfMailURL, mail, Object.class);
       }
     }
-    return success(this).feedback("email.send").feedbackArgs(email).build();
+    // Asking for a reset mail is not itself an accomplishment.
+    return informationMessage(this).feedback("email.send").feedbackArgs(email).build();
   }
 
   @GetMapping(value = "/challenge/7/.git", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)

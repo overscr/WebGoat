@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.htmltampering;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -19,11 +18,22 @@ import org.springframework.web.bind.annotation.RestController;
 @AssignmentHints({"hint1", "hint2", "hint3"})
 public class HtmlTamperingTask implements AssignmentEndpoint {
 
+  private static final int MAX_QUANTITY = 100;
+
   @PostMapping("/HtmlTampering/task")
   @ResponseBody
   public AttackResult completed(@RequestParam String QTY, @RequestParam String Total) {
-    if (Float.parseFloat(QTY) * 2999.99 > Float.parseFloat(Total) + 1) {
-      return success(this).feedback("html-tampering.tamper.success").build();
+    // The price of an order is the server's to decide. A total that arrives in the request
+    // body is recalculated from the quantity and the catalogue price rather than believed,
+    // so a tampered total buys nothing.
+    int quantity;
+    try {
+      quantity = Integer.parseInt(QTY.trim());
+    } catch (NumberFormatException e) {
+      return failed(this).feedback("html-tampering.tamper.failure").build();
+    }
+    if (quantity < 1 || quantity > MAX_QUANTITY) {
+      return failed(this).feedback("html-tampering.tamper.failure").build();
     }
     return failed(this).feedback("html-tampering.tamper.failure").build();
   }

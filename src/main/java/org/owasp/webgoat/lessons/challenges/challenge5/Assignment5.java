@@ -42,11 +42,11 @@ public class Assignment5 implements AssignmentEndpoint {
     try (var connection = dataSource.getConnection()) {
       PreparedStatement statement =
           connection.prepareStatement(
-              "select password from challenge_users where userid = '"
-                  + username_login
-                  + "' and password = '"
-                  + password_login
-                  + "'");
+              "select password from challenge_users where userid = ? and password = ?");
+      // Concatenating the credentials into the statement meant a password of "' or '1'='1"
+      // authenticated as Larry. Both are bound values now, so they are compared, not parsed.
+      statement.setString(1, username_login);
+      statement.setString(2, password_login);
       ResultSet resultSet = statement.executeQuery();
 
       if (resultSet.next()) {

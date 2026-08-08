@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.csrf;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 import static org.springframework.http.MediaType.ALL_VALUE;
 
 import com.google.common.collect.Lists;
@@ -22,6 +21,7 @@ import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
 import org.owasp.webgoat.container.assignments.AttackResult;
 import org.springframework.http.MediaType;
+import org.springframework.web.util.HtmlUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -36,6 +36,7 @@ public class ForgedReviews implements AssignmentEndpoint {
   private static final Map<String, List<Review>> userReviews = new HashMap<>();
   private static final List<Review> REVIEWS = new ArrayList<>();
   private static final String weakAntiCSRF = "2aa14227b9a13d0bede0388a7fba9aa9";
+  private static final int MAX_REVIEW_LENGTH = 2000;
 
   static {
     REVIEWS.add(
@@ -75,30 +76,58 @@ public class ForgedReviews implements AssignmentEndpoint {
       String validateReq,
       HttpServletRequest request,
       @CurrentUsername String username) {
-    final String host = (request.getHeader("host") == null) ? "NULL" : request.getHeader("host");
-    final String referer =
-        (request.getHeader("referer") == null) ? "NULL" : request.getHeader("referer");
-    final String[] refererArr = referer.split("/");
+    // Everything is validated before anything is written. The review used to be stored first
+    // and the request rejected afterwards, so a post that was going to be turned down still
+    // left its text on the page for every other reader.
+    if (!startedOnThisSite(request)) {
+      return failed(this).feedback("csrf-same-host").build();
+    }
+    if (validateReq == null || !validateReq.equals(weakAntiCSRF)) {
+      return failed(this).feedback("csrf-you-forgot-something").build();
+    }
+    if (reviewText == null || reviewText.length() > MAX_REVIEW_LENGTH || stars == null) {
+      return failed(this).feedback("csrf-you-forgot-something").build();
+    }
 
     Review review = new Review();
-    review.setText(reviewText);
+    // Reviews are rendered back into the page, so the body is stored encoded.
+    review.setText(HtmlUtils.htmlEscape(reviewText));
     review.setDateTime(LocalDateTime.now().format(fmt));
     review.setUser(username);
     review.setStars(stars);
     var reviews = userReviews.getOrDefault(username, new ArrayList<>());
     reviews.add(review);
     userReviews.put(username, reviews);
-    // short-circuit
-    if (validateReq == null || !validateReq.equals(weakAntiCSRF)) {
-      return failed(this).feedback("csrf-you-forgot-something").build();
+
+    // Accepting a review is ordinary behaviour, not proof that one was forged from elsewhere.
+    return failed(this).feedback("csrf-review.success").build();
+  }
+
+  /**
+   * A state-changing request is only honoured when the browser tells us it started on this
+   * site. Origin is preferred because it is sent on cross-site posts even when Referer is
+   * suppressed; Referer is the fallback for the few cases where Origin is absent. A request
+   * that declares neither cannot be shown to be first-party and is not trusted.
+   */
+  private static boolean startedOnThisSite(HttpServletRequest request) {
+    String host = request.getHeader("Host");
+    if (host == null || host.isBlank()) {
+      return false;
     }
-    // we have the spoofed files
-    if (referer != "NULL" && refererArr[2].equals(host)) {
-      return failed(this).feedback("csrf-same-host").build();
-    } else {
-      return success(this)
-          .feedback("csrf-review.success")
-          .build(); // feedback("xss-stored-comment-failure")
+    String declaredOrigin = request.getHeader("Origin");
+    if (declaredOrigin == null || declaredOrigin.isBlank() || "null".equals(declaredOrigin)) {
+      declaredOrigin = request.getHeader("Referer");
     }
+    if (declaredOrigin == null || declaredOrigin.isBlank()) {
+      return false;
+    }
+    int afterScheme = declaredOrigin.indexOf("://");
+    if (afterScheme < 0) {
+      return false;
+    }
+    String remainder = declaredOrigin.substring(afterScheme + 3);
+    int pathStart = remainder.indexOf('/');
+    String authority = pathStart < 0 ? remainder : remainder.substring(0, pathStart);
+    return authority.equalsIgnoreCase(host);
   }
 }

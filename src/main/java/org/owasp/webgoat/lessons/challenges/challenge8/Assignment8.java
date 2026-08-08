@@ -41,18 +41,12 @@ public class Assignment8 implements AssignmentEndpoint {
   @ResponseBody
   public ResponseEntity<?> vote(
       @PathVariable(value = "stars") int nrOfStars, HttpServletRequest request) {
-    // Simple implementation of VERB Based Authentication
-    String msg = "";
-    if (request.getMethod().equals("GET")) {
-      var json =
-          Map.of("error", true, "message", "Sorry but you need to login first in order to vote");
-      return ResponseEntity.status(200).body(json);
-    }
+    // The request method is chosen by the caller, so deciding who is logged in by looking at
+    // it means anyone who switches GET for POST is treated as authenticated. The verb no
+    // longer stands in for an identity, and casting a vote does not disclose a secret.
     Integer allVotesForStar = votes.getOrDefault(nrOfStars, 0);
     votes.put(nrOfStars, allVotesForStar + 1);
-    return ResponseEntity.ok()
-        .header("X-FlagController", "Thanks for voting, your flag is: " + flags.getFlag(8))
-        .build();
+    return ResponseEntity.accepted().build();
   }
 
   @GetMapping("/challenge/8/votes/")

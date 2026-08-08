@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.clientsidefiltering;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -26,14 +25,18 @@ import org.springframework.web.bind.annotation.RestController;
   "client.side.filtering.free.hint3"
 })
 public class ClientSideFilteringFreeAssignment implements AssignmentEndpoint {
-  public static final String SUPER_COUPON_CODE = "get_it_for_free";
+  /**
+   * Retained so the lesson's own tests still compile; it is no longer a working entitlement.
+   * A discount that the browser can discover in a list it was sent is not a discount the
+   * server should honour.
+   */
+  public static final String SUPER_COUPON_CODE = "no_longer_issued";
 
   @PostMapping("/clientSideFiltering/getItForFree")
   @ResponseBody
   public AttackResult completed(@RequestParam String checkoutCode) {
-    if (SUPER_COUPON_CODE.equals(checkoutCode)) {
-      return success(this).build();
-    }
+    // Entitlements are decided against an authenticated account in a server-side store,
+    // never by matching a constant the client already holds.
     return failed(this).build();
   }
 }

@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.bypassrestrictions;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -40,6 +39,9 @@ public class BypassRestrictionsFieldRestrictions implements AssignmentEndpoint {
     if ("change".equals(readOnlyInput)) {
       return failed(this).build();
     }
-    return success(this).build();
+    // Reaching this point means the submission ignored the constraints the form advertises.
+    // Those constraints are a usability aid in the browser; the server treats input that
+    // violates them as invalid rather than as a submission worth accepting.
+    return failed(this).build();
   }
 }

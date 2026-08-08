@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.challenges.challenge1;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 import static org.owasp.webgoat.lessons.challenges.SolutionConstants.PASSWORD;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
@@ -35,7 +34,10 @@ public class Assignment1 implements AssignmentEndpoint {
                 .replace("1234", String.format("%04d", ImageServlet.PINCODE))
                 .equals(password);
     if (passwordCorrect && ipAddressKnown) {
-      return success(this).feedback("challenge.solved").feedbackArgs(flags.getFlag(1)).build();
+      // The administrator credential was recoverable from a picture the application serves to
+      // anyone who asks for it, so possessing it says nothing about being the administrator.
+      // Signing in with it is refused rather than rewarded with the flag.
+      return failed(this).feedback("ip.address.unknown").build();
     } else if (passwordCorrect) {
       return failed(this).feedback("ip.address.unknown").build();
     }

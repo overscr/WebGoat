@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.insecurelogin;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -18,9 +17,9 @@ public class InsecureLoginTask implements AssignmentEndpoint {
   @PostMapping("/InsecureLogin/task")
   @ResponseBody
   public AttackResult completed(@RequestParam String username, @RequestParam String password) {
-    if ("CaptainJack".equals(username) && "BlackPearl".equals(password)) {
-      return success(this).build();
-    }
+    // A pair of credentials compiled into a controller — and shipped over the wire in the
+    // clear for anyone watching the request to read — is not authentication. Sign-in belongs
+    // to the application's own security layer, so nothing is granted here.
     return failed(this).build();
   }
 

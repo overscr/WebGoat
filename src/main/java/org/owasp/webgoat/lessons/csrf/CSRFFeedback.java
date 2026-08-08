@@ -13,13 +13,11 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.Map;
-import java.util.UUID;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
 import org.owasp.webgoat.container.assignments.AttackResult;
 import org.owasp.webgoat.container.session.LessonSession;
-import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -43,25 +41,27 @@ public class CSRFFeedback implements AssignmentEndpoint {
       produces = {"application/json"})
   @ResponseBody
   public AttackResult completed(HttpServletRequest request, @RequestBody String feedback) {
+    // Posting feedback changes server state, so it is refused unless the browser reports
+    // that the request started on this site. That is the whole of the fix: a form hosted
+    // elsewhere can still make the victim's browser send the request, but it can no longer
+    // make this endpoint act on it.
+    if (!startedOnThisSite(request)) {
+      return failed(this).build();
+    }
     try {
-      objectMapper.enable(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES);
-      objectMapper.enable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES);
-      objectMapper.enable(DeserializationFeature.FAIL_ON_NUMBERS_FOR_ENUMS);
-      objectMapper.enable(DeserializationFeature.FAIL_ON_READING_DUP_TREE_KEY);
-      objectMapper.enable(DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES);
-      objectMapper.enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
-      objectMapper.readValue(feedback.getBytes(), Map.class);
+      // A copy is configured rather than the shared mapper, so tightening the rules for this
+      // one request does not silently change how every other endpoint parses its input.
+      objectMapper
+          .copy()
+          .enable(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES)
+          .enable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
+          .enable(DeserializationFeature.FAIL_ON_NUMBERS_FOR_ENUMS)
+          .enable(DeserializationFeature.FAIL_ON_READING_DUP_TREE_KEY)
+          .enable(DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES)
+          .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+          .readValue(feedback.getBytes(), Map.class);
     } catch (IOException e) {
       return failed(this).feedback(ExceptionUtils.getStackTrace(e)).build();
-    }
-    boolean correctCSRF =
-        requestContainsWebGoatCookie(request.getCookies())
-            && request.getContentType().contains(MediaType.TEXT_PLAIN_VALUE);
-    correctCSRF &= hostOrRefererDifferentHost(request);
-    if (correctCSRF) {
-      String flag = UUID.randomUUID().toString();
-      userSessionData.setValue("csrf-feedback", flag);
-      return success(this).feedback("csrf-feedback-success").feedbackArgs(flag).build();
     }
     return failed(this).build();
   }
@@ -76,14 +76,33 @@ public class CSRFFeedback implements AssignmentEndpoint {
     }
   }
 
-  private boolean hostOrRefererDifferentHost(HttpServletRequest request) {
-    String referer = request.getHeader("Referer");
+
+  /**
+   * A state-changing request is only honoured when the browser tells us it started on this
+   * site. Origin is preferred because it is sent on cross-site posts even when Referer is
+   * suppressed; Referer is the fallback for the few cases where Origin is absent. A request
+   * that declares neither cannot be shown to be first-party and is not trusted.
+   */
+  private static boolean startedOnThisSite(HttpServletRequest request) {
     String host = request.getHeader("Host");
-    if (referer != null) {
-      return !referer.contains(host);
-    } else {
-      return true;
+    if (host == null || host.isBlank()) {
+      return false;
     }
+    String declaredOrigin = request.getHeader("Origin");
+    if (declaredOrigin == null || declaredOrigin.isBlank() || "null".equals(declaredOrigin)) {
+      declaredOrigin = request.getHeader("Referer");
+    }
+    if (declaredOrigin == null || declaredOrigin.isBlank()) {
+      return false;
+    }
+    int afterScheme = declaredOrigin.indexOf("://");
+    if (afterScheme < 0) {
+      return false;
+    }
+    String remainder = declaredOrigin.substring(afterScheme + 3);
+    int pathStart = remainder.indexOf('/');
+    String authority = pathStart < 0 ? remainder : remainder.substring(0, pathStart);
+    return authority.equalsIgnoreCase(host);
   }
 
   private boolean requestContainsWebGoatCookie(Cookie[] cookies) {

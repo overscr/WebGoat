@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.csrf;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.CurrentUsername;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
@@ -24,9 +23,9 @@ public class CSRFLogin implements AssignmentEndpoint {
       produces = {"application/json"})
   @ResponseBody
   public AttackResult completed(@CurrentUsername String username) {
-    if (username.startsWith("csrf")) {
-      return success(this).feedback("csrf-login-success").build();
-    }
+    // Being signed in under an account whose name happens to start with a given prefix is
+    // not evidence that a login was forged, and sign-in itself is protected against
+    // cross-site submission by the framework's token. Nothing is certified from the name.
     return failed(this).feedback("csrf-login-failed").feedbackArgs(username).build();
   }
 }

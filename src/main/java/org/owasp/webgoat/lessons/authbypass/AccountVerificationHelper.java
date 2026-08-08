@@ -55,26 +55,23 @@ public class AccountVerificationHelper {
   // end of cheating check ... the method below is the one of real interest. Can you find the flaw?
 
   public boolean verifyAccount(Integer userId, HashMap<String, String> submittedQuestions) {
-    // short circuit if no questions are submitted
-    if (submittedQuestions.entrySet().size() != secQuestionStore.get(verifyUserId).size()) {
+    // The flaw was that every check was written as "if you sent this answer it must be right",
+    // so a submission that simply omitted the answers satisfied all of them, and the answers
+    // were looked up for a fixed account regardless of which one was being verified.
+    // Verification now runs against the account actually named, and every stored question must
+    // be both present and correct.
+    Map<String, String> expected = secQuestionStore.get(userId);
+    if (expected == null || !verifyUserId.equals(userId)) {
       return false;
     }
-
-    if (submittedQuestions.containsKey("secQuestion0")
-        && !submittedQuestions
-            .get("secQuestion0")
-            .equals(secQuestionStore.get(verifyUserId).get("secQuestion0"))) {
+    if (submittedQuestions == null || !submittedQuestions.keySet().equals(expected.keySet())) {
       return false;
     }
-
-    if (submittedQuestions.containsKey("secQuestion1")
-        && !submittedQuestions
-            .get("secQuestion1")
-            .equals(secQuestionStore.get(verifyUserId).get("secQuestion1"))) {
-      return false;
+    for (Map.Entry<String, String> question : expected.entrySet()) {
+      if (!question.getValue().equals(submittedQuestions.get(question.getKey()))) {
+        return false;
+      }
     }
-
-    // else
     return true;
   }
 }
