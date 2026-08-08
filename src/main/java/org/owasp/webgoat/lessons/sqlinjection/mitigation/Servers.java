@@ -6,6 +6,7 @@ package org.owasp.webgoat.lessons.sqlinjection.mitigation;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +41,12 @@ public class Servers {
     private String description;
   }
 
+  // ORDER BY cannot be parameterized with a JDBC bind variable, so the column
+  // name must instead be validated against a strict allowlist of the actual
+  // sortable columns before it is concatenated into the query.
+  private static final Set<String> SORTABLE_COLUMNS =
+      Set.of("id", "hostname", "ip", "mac", "status", "description");
+
   public Servers(LessonDataSource dataSource) {
     this.dataSource = dataSource;
   }
@@ -48,6 +55,10 @@ public class Servers {
   @ResponseBody
   public List<Server> sort(@RequestParam String column) throws Exception {
     List<Server> servers = new ArrayList<>();
+
+    if (column == null || !SORTABLE_COLUMNS.contains(column.toLowerCase())) {
+      column = "id";
+    }
 
     try (var connection = dataSource.getConnection()) {
       try (var statement =

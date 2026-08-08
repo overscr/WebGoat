@@ -8,6 +8,7 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import com.thoughtworks.xstream.XStream;
+import com.thoughtworks.xstream.security.NoTypePermission;
 import org.apache.commons.lang3.StringUtils;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -25,6 +26,12 @@ public class VulnerableComponentsLesson implements AssignmentEndpoint {
   public @ResponseBody AttackResult completed(@RequestParam String payload) {
     XStream xstream = new XStream();
     xstream.setClassLoader(Contact.class.getClassLoader());
+    // XStream will happily instantiate whatever class a document names (including via a
+    // class= override on an aliased element), which is exactly what CVE-2013-7285-style
+    // payloads (dynamic-proxy + java.beans.EventHandler + ProcessBuilder) rely on. Deny
+    // every type by default and allow back only the ones this endpoint actually needs.
+    xstream.addPermission(NoTypePermission.NONE);
+    xstream.allowTypes(new Class[] {Contact.class, ContactImpl.class});
     xstream.alias("contact", ContactImpl.class);
     xstream.ignoreUnknownElements();
     Contact contact = null;
@@ -53,7 +60,12 @@ public class VulnerableComponentsLesson implements AssignmentEndpoint {
         return success(this).feedback("vulnerable-components.success").build();
       }
     } catch (Exception e) {
-      return success(this).feedback("vulnerable-components.success").output(e.getMessage()).build();
+      // An exception here means invoking a method on the unmarshalled object blew up - that is
+      // not evidence the deserialization was safely contained, but it is also not proof of a
+      // successful attack either way. Treat it as a failed attempt instead of rewarding whatever
+      // caused the object graph to misbehave; a hardened XStream should never get this far with
+      // attacker-controlled types in the first place (see the type permission allowlist above).
+      return failed(this).feedback("vulnerable-components.close").output(e.getMessage()).build();
     }
     return failed(this).feedback("vulnerable-components.fromXML").feedbackArgs(contact).build();
   }
