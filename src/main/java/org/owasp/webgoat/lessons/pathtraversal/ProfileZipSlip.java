@@ -55,7 +55,8 @@ public class ProfileZipSlip extends ProfileUploadBase {
   @ResponseBody
   public AttackResult uploadFileHandler(
       @RequestParam("uploadedFileZipSlip") MultipartFile file, @CurrentUsername String username) {
-    if (!file.getOriginalFilename().toLowerCase().endsWith(".zip")) {
+    var originalFilename = file.getOriginalFilename();
+    if (originalFilename == null || !originalFilename.toLowerCase().endsWith(".zip")) {
       return failed(this).feedback("path-traversal-zip-slip.no-zip").build();
     } else {
       return processZipUpload(file, username);
@@ -69,16 +70,29 @@ public class ProfileZipSlip extends ProfileUploadBase {
     var currentImage = getProfilePictureAsBase64(username);
 
     try {
-      var uploadedZipFile = tmpZipDirectory.resolve(file.getOriginalFilename());
+      var extractionRoot = tmpZipDirectory.toAbsolutePath().normalize();
+      var uploadedZipFile = extractionRoot.resolve("upload.zip");
       FileCopyUtils.copy(file.getBytes(), uploadedZipFile.toFile());
 
       ZipFile zip = new ZipFile(uploadedZipFile.toFile());
       Enumeration<? extends ZipEntry> entries = zip.entries();
       while (entries.hasMoreElements()) {
         ZipEntry e = entries.nextElement();
-        File f = new File(tmpZipDirectory.toFile(), e.getName());
-        InputStream is = zip.getInputStream(e);
-        Files.copy(is, f.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        // An archive entry names where it wants to land. Each destination is resolved against
+        // the extraction directory and required to stay inside it, so an entry called
+        // "../../pwned.jpg" is rejected rather than written outside the sandbox.
+        var destination = extractionRoot.resolve(e.getName()).normalize();
+        if (!destination.startsWith(extractionRoot)) {
+          return failed(this).feedback("path-traversal-zip-slip.no-zip").build();
+        }
+        if (e.isDirectory()) {
+          Files.createDirectories(destination);
+          continue;
+        }
+        Files.createDirectories(destination.getParent());
+        try (InputStream is = zip.getInputStream(e)) {
+          Files.copy(is, destination, StandardCopyOption.REPLACE_EXISTING);
+        }
       }
 
       return isSolved(currentImage, getProfilePictureAsBase64(username));

@@ -25,6 +25,11 @@ public class VulnerableComponentsLesson implements AssignmentEndpoint {
   public @ResponseBody AttackResult completed(@RequestParam String payload) {
     XStream xstream = new XStream();
     xstream.setClassLoader(Contact.class.getClassLoader());
+    // 1.4.5 will instantiate whatever type the document names, which is how a crafted
+    // <contact> becomes command execution (CVE-2013-7285 and its successors). The library is
+    // upgraded to a release that ships the type-permission framework, and this endpoint
+    // additionally names the one type it actually expects.
+    xstream.allowTypes(new Class<?>[] {ContactImpl.class});
     xstream.alias("contact", ContactImpl.class);
     xstream.ignoreUnknownElements();
     Contact contact = null;

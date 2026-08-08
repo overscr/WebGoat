@@ -48,16 +48,19 @@ public class ProfileUploadBase implements AssignmentEndpoint {
     File uploadDirectory = cleanupAndCreateDirectoryForUser(username);
 
     try {
-      var uploadedFile = new File(uploadDirectory, fullName);
-      uploadedFile.createNewFile();
-      FileCopyUtils.copy(file.getBytes(), uploadedFile);
-
-      if (attemptWasMade(uploadDirectory, uploadedFile)) {
-        return solvedIt(uploadedFile);
+      // The submitted name is only ever a file name. Any directory part of it is discarded and
+      // the result is resolved against the caller's own upload directory, then checked to be
+      // inside it — so "../../" in the name cannot walk the upload out of that directory.
+      var uploadRoot = uploadDirectory.getCanonicalFile().toPath();
+      var uploadedFile = uploadRoot.resolve(safeFileName(fullName)).normalize();
+      if (!uploadedFile.startsWith(uploadRoot)) {
+        return failed(this).feedback("path-traversal-profile-empty-name").build();
       }
+      Files.write(uploadedFile, file.getBytes());
+
       return informationMessage(this)
           .feedback("path-traversal-profile-updated")
-          .feedbackArgs(uploadedFile.getAbsoluteFile())
+          .feedbackArgs(uploadedFile.toAbsolutePath())
           .build();
 
     } catch (IOException e) {
@@ -73,6 +76,17 @@ public class ProfileUploadBase implements AssignmentEndpoint {
     }
     Files.createDirectories(uploadDirectory.toPath());
     return uploadDirectory;
+  }
+
+  /**
+   * Reduces a submitted profile name to a plain file name: separators of either flavour are
+   * dropped along with any leading dots, so nothing is left that could denote a parent
+   * directory or an absolute location.
+   */
+  private String safeFileName(String fullName) {
+    String candidate = FilenameUtils.getName(fullName.replace('\\', '/'));
+    candidate = candidate.replaceAll("^[.]+", "");
+    return candidate.isBlank() ? "profile" : candidate;
   }
 
   private boolean attemptWasMade(File expectedUploadDirectory, File uploadedFile)
