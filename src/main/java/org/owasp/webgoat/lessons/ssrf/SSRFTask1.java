@@ -5,6 +5,7 @@
 package org.owasp.webgoat.lessons.ssrf;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
+import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -24,19 +25,26 @@ public class SSRFTask1 implements AssignmentEndpoint {
     return stealTheCheese(url);
   }
 
-  // The page only ever has one legitimate resource to show. Anything else the client asks for is
-  // a request forgery attempt and is not resolved server side.
-  private static final String ALLOWED_RESOURCE = "images/tom.png";
+  // The page has exactly two local resources it is willing to name, compared with an exact,
+  // anchored match rather than a pattern -- there is no server-side fetch here for a crafted
+  // value to redirect, so naming any other resource, local or remote, simply fails.
+  private static final String TOM_RESOURCE = "images/tom.png";
+  private static final String JERRY_RESOURCE = "images/jerry.png";
 
   protected AttackResult stealTheCheese(String url) {
     try {
       StringBuilder html = new StringBuilder();
 
-      if (ALLOWED_RESOURCE.equals(url)) {
+      if (TOM_RESOURCE.equals(url)) {
         html.append(
             "<img class=\"image\" alt=\"Tom\" src=\"images/tom.png\" width=\"25%\""
                 + " height=\"25%\">");
         return failed(this).feedback("ssrf.tom").output(html.toString()).build();
+      } else if (JERRY_RESOURCE.equals(url)) {
+        html.append(
+            "<img class=\"image\" alt=\"Jerry\" src=\"images/jerry.png\" width=\"25%\""
+                + " height=\"25%\">");
+        return success(this).feedback("ssrf.success").output(html.toString()).build();
       } else {
         html.append("<img class=\"image\" alt=\"Silly Cat\" src=\"images/cat.jpg\">");
         return failed(this).feedback("ssrf.failure").output(html.toString()).build();

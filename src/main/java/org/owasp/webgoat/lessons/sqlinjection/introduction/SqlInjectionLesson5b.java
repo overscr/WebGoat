@@ -48,24 +48,26 @@ public class SqlInjectionLesson5b implements AssignmentEndpoint {
           connection.prepareStatement(
               queryString, ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
 
-      int count = 0;
+      int count;
       try {
-        count = Integer.parseInt(login_count);
+        count = Integer.parseInt(login_count.trim());
       } catch (Exception e) {
-        return failed(this)
-            .output(
-                "Could not parse: "
-                    + login_count
-                    + " to a number"
-                    + "<br> Your query was: "
-                    + queryString.replace("?", login_count))
-            .build();
+        return failed(this).output("Could not parse the login count to a number").build();
+      }
+
+      // The user id column is numeric, so the value that is bound against it has to be one too.
+      // Parsing it in Java before it ever reaches the driver means a crafted, non-numeric value
+      // is rejected outright instead of surfacing a driver-level error (or worse, being coerced
+      // in some driver-specific way) back to the client.
+      int userId;
+      try {
+        userId = Integer.parseInt(accountName.trim());
+      } catch (Exception e) {
+        return failed(this).output("Could not parse the user id to a number").build();
       }
 
       query.setInt(1, count);
-      query.setString(2, accountName);
-      // String query = "SELECT * FROM user_data WHERE Login_Count = " + login_count + " and userid
-      // = " + accountName, ;
+      query.setInt(2, userId);
       try {
         ResultSet results = query.executeQuery();
 
@@ -80,40 +82,22 @@ public class SqlInjectionLesson5b implements AssignmentEndpoint {
           if (results.getRow() >= 6) {
             return success(this)
                 .feedback("sql-injection.5b.success")
-                .output("Your query was: " + queryString.replace("?", login_count))
                 .feedbackArgs(output.toString())
                 .build();
           } else {
-            return failed(this)
-                .output(
-                    output.toString()
-                        + "<br> Your query was: "
-                        + queryString.replace("?", login_count))
-                .build();
+            return failed(this).output(output.toString()).build();
           }
 
         } else {
-          return failed(this)
-              .feedback("sql-injection.5b.no.results")
-              .output("Your query was: " + queryString.replace("?", login_count))
-              .build();
+          return failed(this).feedback("sql-injection.5b.no.results").build();
         }
       } catch (SQLException sqle) {
-
-        return failed(this)
-            .output(
-                sqle.getMessage() + "<br> Your query was: " + queryString.replace("?", login_count))
-            .build();
+        // The underlying database error is never shown to the client -- it can carry schema or
+        // driver details that are none of the caller's business.
+        return failed(this).output("The query could not be executed").build();
       }
     } catch (Exception e) {
-      return failed(this)
-          .output(
-              this.getClass().getName()
-                  + " : "
-                  + e.getMessage()
-                  + "<br> Your query was: "
-                  + queryString.replace("?", login_count))
-          .build();
+      return failed(this).output("The query could not be executed").build();
     }
   }
 }

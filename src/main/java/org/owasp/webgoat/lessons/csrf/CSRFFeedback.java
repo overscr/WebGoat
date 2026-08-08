@@ -42,6 +42,16 @@ public class CSRFFeedback implements AssignmentEndpoint {
       produces = {"application/json"})
   @ResponseBody
   public AttackResult completed(HttpServletRequest request, @RequestBody String feedback) {
+    // Browsers only send a cross site form post without a CORS preflight when the content type is
+    // one of a small "simple" set (text/plain among them), which is exactly why that content type
+    // is the classic way to smuggle a JSON-shaped body past a same-origin check. Requiring the
+    // real content type up front removes that loophole regardless of what the Origin/Referer
+    // headers claim.
+    String contentType = request.getContentType();
+    if (contentType == null
+        || !contentType.toLowerCase(java.util.Locale.ROOT).startsWith("application/json")) {
+      return failed(this).feedback("csrf-feedback-failure").build();
+    }
     try {
       objectMapper.enable(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES);
       objectMapper.enable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES);

@@ -80,7 +80,10 @@ public class StoredXssComments implements AssignmentEndpoint {
 
     List<Comment> comments = userComments.getOrDefault(username, new ArrayList<>());
     comment.setDateTime(LocalDateTime.now().format(fmt));
-    comment.setUser(username);
+    // The display name comes from account registration, which lets a user pick an arbitrary
+    // value -- including markup. It ends up in every comment they post and is rendered back to
+    // every visitor exactly like the comment text is, so it needs the same treatment.
+    comment.setUser(HtmlUtils.htmlEscape(username == null ? "" : username));
     // Comments are rendered back into the page for every visitor, so markup supplied by the
     // poster has to be neutralised before it is stored.
     comment.setText(HtmlUtils.htmlEscape(comment.getText() == null ? "" : comment.getText()));

@@ -31,17 +31,20 @@ public class MissingFunctionACUsers {
   private final MissingAccessControlUserRepository userRepository;
 
   @GetMapping(path = {"access-control/users"})
-  public ModelAndView listUsers() {
+  public ModelAndView listUsers(@CurrentUsername String username) {
 
     ModelAndView model = new ModelAndView();
     model.setViewName("list_users");
-    List<User> allUsers = userRepository.findAllUsers();
-    model.addObject("numUsers", allUsers.size());
-    // add display user objects in place of direct users
+    // This page is reached the same way as the JSON endpoint below: hiding the link in the menu
+    // is not access control, the page itself has to refuse to render the listing for anyone who
+    // is not an administrator.
     List<DisplayUser> displayUsers = new ArrayList<>();
-    for (User user : allUsers) {
-      displayUsers.add(new DisplayUser(user, PASSWORD_SALT_SIMPLE));
+    if (isAdmin(username)) {
+      for (User user : userRepository.findAllUsers()) {
+        displayUsers.add(new DisplayUser(user, PASSWORD_SALT_SIMPLE));
+      }
     }
+    model.addObject("numUsers", displayUsers.size());
     model.addObject("allUsers", displayUsers);
 
     return model;

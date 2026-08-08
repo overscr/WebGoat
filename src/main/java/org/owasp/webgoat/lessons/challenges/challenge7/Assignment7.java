@@ -17,9 +17,7 @@ import org.owasp.webgoat.container.assignments.AttackResult;
 import org.owasp.webgoat.lessons.challenges.Email;
 import org.owasp.webgoat.lessons.challenges.Flags;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -127,9 +125,12 @@ public class Assignment7 implements AssignmentEndpoint {
     return success(this).feedback("email.send").feedbackArgs(email).build();
   }
 
-  @GetMapping(value = "/challenge/7/.git", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+  @GetMapping(value = "/challenge/7/.git")
   @ResponseBody
-  public ClassPathResource git() {
-    return new ClassPathResource("lessons/challenges/challenge7/git.zip");
+  public ResponseEntity<Void> git() {
+    // A checked-out .git directory (or an archive of one) hands out the full commit history of
+    // the application, which can include material that was since removed from the working tree.
+    // Version control metadata has no business being reachable over HTTP at all.
+    return ResponseEntity.notFound().build();
   }
 }

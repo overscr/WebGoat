@@ -24,8 +24,16 @@ public class HtmlTamperingTask implements AssignmentEndpoint {
   @ResponseBody
   public AttackResult completed(@RequestParam String QTY, @RequestParam String Total) {
     // The price is the server's to decide. The total that came back from the browser is ignored
-    // and recalculated, so editing it in the page buys nothing.
-    double total = Float.parseFloat(QTY) * UNIT_PRICE;
+    // and recalculated, so editing it in the page buys nothing. The quantity field is still free
+    // text on the client, so a non-numeric value must not be able to turn into an unhandled
+    // exception here.
+    double quantity;
+    try {
+      quantity = Float.parseFloat(QTY);
+    } catch (NumberFormatException e) {
+      quantity = 0;
+    }
+    double total = quantity * UNIT_PRICE;
     return failed(this)
         .feedback("html-tampering.tamper.failure")
         .output(String.format("%.2f", total))

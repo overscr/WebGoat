@@ -51,6 +51,15 @@ public class VulnerableComponentsLesson implements AssignmentEndpoint {
                 .replace("> ", ">")
                 .replace(" <", "<");
       }
+      // Belt and braces on top of the type-permission allow list above: the CVE-2013-7285
+      // family of exploits all work by naming an alternate type to instantiate, either through
+      // a "class" attribute on an element or through the dynamic-proxy converter. Neither of
+      // those is something a plain <contact> document ever needs, so reject them outright
+      // before the payload is handed to XStream at all.
+      String normalized = payload == null ? "" : payload.toLowerCase(java.util.Locale.ROOT);
+      if (normalized.contains("class=") || normalized.contains("dynamic-proxy")) {
+        return failed(this).feedback("vulnerable-components.close").output("Unsupported element or attribute").build();
+      }
       contact = (Contact) xstream.fromXML(payload);
     } catch (Exception ex) {
       return failed(this).feedback("vulnerable-components.close").output(ex.getMessage()).build();

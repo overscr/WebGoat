@@ -35,4 +35,11 @@ class AllowListObjectInputStream extends ObjectInputStream {
     }
     return super.resolveClass(desc);
   }
+
+  @Override
+  protected Class<?> resolveProxyClass(String[] interfaces) throws IOException, ClassNotFoundException {
+    // Dynamic proxies are resolved through a separate code path that a class-name allow list
+    // does not cover, so proxy-based gadget chains have to be rejected outright here too.
+    throw new InvalidClassException("Dynamic proxies are not accepted");
+  }
 }

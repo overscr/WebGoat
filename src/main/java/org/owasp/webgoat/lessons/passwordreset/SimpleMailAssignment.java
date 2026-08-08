@@ -92,14 +92,20 @@ public class SimpleMailAssignment implements AssignmentEndpoint {
 
   private AttackResult sendEmail(String username, String email, String webGoatUsername) {
     if (username.equals(webGoatUsername)) {
+      // The new password is generated and stored server-side so the login endpoint above can
+      // verify it, but it is never placed in the e-mail body: mail is not a confidential channel,
+      // and anyone who can read that mailbox would otherwise learn the credential outright.
+      issuePassword(username);
       PasswordResetEmail mailEvent =
           PasswordResetEmail.builder()
               .recipient(username)
               .title("Simple e-mail assignment")
               .time(LocalDateTime.now())
               .contents(
-                  "Thanks for resetting your password, your new password is: "
-                      + issuePassword(username))
+                  "We received a request to reset the password of your account. For your own"
+                      + " safety this message does not contain your new password, please sign in"
+                      + " to the application to retrieve it. If you did not request this you can"
+                      + " ignore this message.")
               .sender("webgoat@owasp.org")
               .build();
       try {

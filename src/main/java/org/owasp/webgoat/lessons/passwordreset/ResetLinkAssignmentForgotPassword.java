@@ -47,6 +47,9 @@ public class ResetLinkAssignmentForgotPassword implements AssignmentEndpoint {
   public AttackResult sendPasswordResetLink(@RequestParam String email) {
     String resetLink = UUID.randomUUID().toString();
     ResetLinkAssignment.resetLinks.add(resetLink);
+    // Record which account this link belongs to so that redeeming it later can be restricted to
+    // the owner of that account instead of anyone who happens to know the token.
+    ResetLinkAssignment.resetLinkToEmail.put(resetLink, email);
     // The link that goes out by e-mail is built from configuration, never from the Host header of
     // the request that asked for it. Trusting that header lets anyone have the application mail a
     // reset link pointing at a server they control, and then use it to take over the account.
