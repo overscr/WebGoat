@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.TimeZone;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
@@ -69,14 +70,24 @@ public class FileServer {
     var username = authentication.getName();
     var destinationDir = new File(fileLocation, username);
     destinationDir.mkdirs();
+
+    // The name that arrives with an upload is chosen by whoever sent it, so it is reduced to a
+    // plain file name and the result is required to land inside this user's own directory —
+    // otherwise "../<someone else>/notes.txt" would let one account overwrite another's files.
+    var uploadRoot = destinationDir.getCanonicalFile().toPath();
+    var storedName = plainFileName(multipartFile.getOriginalFilename());
+    var destinationFile = uploadRoot.resolve(storedName).normalize();
+    if (!uploadRoot.equals(destinationFile.getParent())) {
+      throw new IOException("Illegal file name");
+    }
+
     // DO NOT use multipartFile.transferTo(), see
     // https://stackoverflow.com/questions/60336929/java-nio-file-nosuchfileexception-when-file-transferto-is-called
     try (InputStream is = multipartFile.getInputStream()) {
-      var destinationFile = destinationDir.toPath().resolve(multipartFile.getOriginalFilename());
       Files.deleteIfExists(destinationFile);
       Files.copy(is, destinationFile);
     }
-    log.debug("File saved to {}", new File(destinationDir, multipartFile.getOriginalFilename()));
+    log.debug("File saved to {}", destinationFile);
 
     return new ModelAndView(
         new RedirectView("files", true),
@@ -115,6 +126,15 @@ public class FileServer {
         uploadedFiles.stream().sorted(comparing(UploadedFile::creationTime).reversed()).toList());
     modelAndView.addObject("webwolf_url", "http://" + server + ":" + port + contextPath);
     return modelAndView;
+  }
+
+  private static String plainFileName(String originalFilename) {
+    if (originalFilename == null) {
+      return "upload";
+    }
+    String candidate = FilenameUtils.getName(originalFilename.replace('\\', '/'));
+    candidate = candidate.replaceAll("^[.]+", "");
+    return candidate.isBlank() ? "upload" : candidate;
   }
 
   private String getCreationTime(TimeZone timezone, File file) {

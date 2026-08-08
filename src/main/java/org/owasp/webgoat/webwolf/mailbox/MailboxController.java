@@ -45,7 +45,17 @@ public class MailboxController {
 
   @DeleteMapping("/mail")
   @ResponseStatus(HttpStatus.ACCEPTED)
-  public void deleteAllMail() {
-    mailboxRepository.deleteAll();
+  public void deleteAllMail(Authentication authentication) {
+    // Emptying the mailbox used to empty everybody's: one unauthenticated DELETE destroyed
+    // every message the server held, including reset links other people were waiting on.
+    // Only the caller's own mail is removed, and an anonymous caller owns none.
+    if (authentication == null) {
+      return;
+    }
+    List<Email> ownMail =
+        mailboxRepository.findByRecipientOrderByTimeDesc(authentication.getName());
+    if (ownMail != null && !ownMail.isEmpty()) {
+      mailboxRepository.deleteAll(ownMail);
+    }
   }
 }
