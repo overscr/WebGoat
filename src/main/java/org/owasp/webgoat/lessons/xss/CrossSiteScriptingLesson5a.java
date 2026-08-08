@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.util.HtmlUtils;
 
 @RestController
 @AssignmentHints(
@@ -60,9 +61,12 @@ public class CrossSiteScriptingLesson5a implements AssignmentEndpoint {
             + QTY4.intValue() * 299.99;
 
     userSessionData.setValue("xss-reflected1-complete", "false");
+    // The credit card field is echoed straight back into the confirmation page, so it has to be
+    // HTML encoded before it is concatenated into the markup.
+    String safeField1 = HtmlUtils.htmlEscape(field1);
     StringBuilder cart = new StringBuilder();
     cart.append("Thank you for shopping at WebGoat. <br />Your support is appreciated<hr />");
-    cart.append("<p>We have charged credit card:" + field1 + "<br />");
+    cart.append("<p>We have charged credit card:" + safeField1 + "<br />");
     cart.append("                             ------------------- <br />");
     cart.append("                               $" + totalSale);
 
@@ -71,7 +75,9 @@ public class CrossSiteScriptingLesson5a implements AssignmentEndpoint {
       userSessionData.setValue("xss-reflected1-complete", "false");
     }
 
-    if (XSS_PATTERN.test(field1)) {
+    // The attack only succeeds when a script survives into the response that is sent back, so
+    // the rendered cart is what gets checked -- not the raw request parameter.
+    if (XSS_PATTERN.test(cart.toString())) {
       userSessionData.setValue("xss-reflected-5a-complete", "true");
       if (field1.toLowerCase().contains("console.log")) {
         return success(this)

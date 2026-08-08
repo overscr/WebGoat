@@ -213,7 +213,9 @@ define(['jquery',
 
             /* for testing */
             showTestParam: function (param) {
-                this.$el.find('.lesson-content').html('test:' + param);
+                // The route fragment is attacker controlled, so render it as text.
+                // Using .html() here turned it into a DOM XSS sink.
+                this.$el.find('.lesson-content').text('test:' + param);
             },
 
             resetLesson: function () {

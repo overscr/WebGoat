@@ -65,21 +65,34 @@ public class CommentsCache {
    * progress etc). In real life the XmlMapper bean defined above will be used automatically and the
    * Comment class can be directly used in the controller method (instead of a String)
    */
-  protected Comment parseXml(String xml, boolean securityEnabled)
-      throws XMLStreamException, JAXBException {
+  protected Comment parseXml(String xml) throws XMLStreamException, JAXBException {
     var jc = JAXBContext.newInstance(Comment.class);
     var xif = XMLInputFactory.newInstance();
 
-    // TODO fix me disabled for now.
-    if (securityEnabled) {
-      xif.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, ""); // Compliant
-      xif.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, ""); // compliant
-    }
+    // A comment never needs a DTD to unmarshal, and the XML is attacker supplied, so entity
+    // resolution is switched off before anything is read. Without this, external and parameter
+    // entities can be used to read local files or make the server issue outbound requests.
+    xif.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+    xif.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
+    setIfSupported(xif, XMLConstants.ACCESS_EXTERNAL_DTD, "");
+    setIfSupported(xif, XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
 
     var xsr = xif.createXMLStreamReader(new StringReader(xml));
 
     var unmarshaller = jc.createUnmarshaller();
     return (Comment) unmarshaller.unmarshal(xsr);
+  }
+
+  /**
+   * Not every StAX implementation on the classpath knows the JAXP access properties; the standard
+   * SUPPORT_DTD setting above is what actually closes the hole, these are belt and braces.
+   */
+  private void setIfSupported(XMLInputFactory factory, String property, Object value) {
+    try {
+      factory.setProperty(property, value);
+    } catch (IllegalArgumentException e) {
+      // property not recognised by this implementation, nothing to do
+    }
   }
 
   public void addComment(Comment comment, WebGoatUser user, boolean visibleForAllUsers) {

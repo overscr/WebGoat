@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.idor;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -46,23 +45,16 @@ public class IDORViewOtherProfile implements AssignmentEndpoint {
     if (obj != null && obj.equals("tom")) {
       // going to use session auth to view this one
       String authUserId = (String) userSessionData.getValue("idor-authenticated-user-id");
-      if (userId != null && !userId.equals(authUserId)) {
-        // on the right track
-        UserProfile requestedProfile = new UserProfile(userId);
-        // secure code would ensure there was a horizontal access control check prior to dishing up
-        // the requested profile
-        if (requestedProfile.getUserId() != null
-            && requestedProfile.getUserId().equals("2342388")) {
-          return success(this)
-              .feedback("idor.view.profile.success")
-              .output(requestedProfile.profileToMap().toString())
-              .build();
-        } else {
-          return failed(this).feedback("idor.view.profile.close1").build();
-        }
-      } else {
-        return failed(this).feedback("idor.view.profile.close2").build();
+      // Horizontal access control check: the id in the path is attacker controlled, so a profile
+      // is only ever served when it belongs to the authenticated user.
+      if (userId == null || !userId.equals(authUserId)) {
+        return failed(this).feedback("idor.view.profile.close1").build();
       }
+      UserProfile requestedProfile = new UserProfile(userId);
+      return failed(this)
+          .feedback("idor.view.profile.close2")
+          .output(requestedProfile.profileToMap().toString())
+          .build();
     }
     return failed(this).build();
   }

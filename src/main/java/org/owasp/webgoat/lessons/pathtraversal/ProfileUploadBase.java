@@ -48,7 +48,17 @@ public class ProfileUploadBase implements AssignmentEndpoint {
     File uploadDirectory = cleanupAndCreateDirectoryForUser(username);
 
     try {
-      var uploadedFile = new File(uploadDirectory, fullName);
+      // The name is supplied by the client and is only ever meant to name a file, never a
+      // location. Strip any directory component and then confirm the resolved path really does
+      // sit inside the user's own upload directory before anything is written.
+      var safeName = FilenameUtils.getName(fullName);
+      if (StringUtils.isEmpty(safeName)) {
+        return failed(this).feedback("path-traversal-profile-empty-name").build();
+      }
+      var uploadedFile = new File(uploadDirectory, safeName);
+      if (!isInsideDirectory(uploadDirectory, uploadedFile)) {
+        return failed(this).feedback("path-traversal-profile-empty-name").build();
+      }
       uploadedFile.createNewFile();
       FileCopyUtils.copy(file.getBytes(), uploadedFile);
 
@@ -73,6 +83,11 @@ public class ProfileUploadBase implements AssignmentEndpoint {
     }
     Files.createDirectories(uploadDirectory.toPath());
     return uploadDirectory;
+  }
+
+  private boolean isInsideDirectory(File directory, File file) throws IOException {
+    var directoryPath = directory.getCanonicalFile().toPath();
+    return file.getCanonicalFile().toPath().startsWith(directoryPath);
   }
 
   private boolean attemptWasMade(File expectedUploadDirectory, File uploadedFile)

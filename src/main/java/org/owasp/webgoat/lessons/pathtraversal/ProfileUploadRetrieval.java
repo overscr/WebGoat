@@ -18,6 +18,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.util.Base64;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.RandomUtils;
 import org.owasp.webgoat.container.CurrentUsername;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
@@ -97,14 +98,21 @@ public class ProfileUploadRetrieval implements AssignmentEndpoint {
     }
     try {
       var id = request.getParameter("id");
-      var catPicture =
-          new File(catPicturesDirectory, (id == null ? RandomUtils.nextInt(1, 11) : id) + ".jpg");
-
-      if (catPicture.getName().toLowerCase().contains("path-traversal-secret.jpg")) {
-        return ResponseEntity.ok()
-            .contentType(MediaType.parseMediaType(MediaType.IMAGE_JPEG_VALUE))
-            .body(FileCopyUtils.copyToByteArray(catPicture));
+      // The query string check above is decoded-input blind, so the id is re-validated here:
+      // only a bare file name is accepted and the resolved file must stay inside the pictures
+      // directory. Anything else is a traversal attempt.
+      var requestedName = (id == null ? String.valueOf(RandomUtils.nextInt(1, 11)) : id) + ".jpg";
+      if (!requestedName.equals(FilenameUtils.getName(requestedName))) {
+        return ResponseEntity.badRequest().body("Illegal characters are not allowed in the id");
       }
+      var catPicture = new File(catPicturesDirectory, requestedName);
+      if (!catPicture
+          .getCanonicalFile()
+          .toPath()
+          .startsWith(catPicturesDirectory.getCanonicalFile().toPath())) {
+        return ResponseEntity.badRequest().body("Illegal characters are not allowed in the id");
+      }
+
       if (catPicture.exists()) {
         return ResponseEntity.ok()
             .contentType(MediaType.parseMediaType(MediaType.IMAGE_JPEG_VALUE))
