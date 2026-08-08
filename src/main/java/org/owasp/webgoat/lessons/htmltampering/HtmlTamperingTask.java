@@ -18,10 +18,10 @@ import org.springframework.web.bind.annotation.RestController;
 @AssignmentHints({"hint1", "hint2", "hint3"})
 public class HtmlTamperingTask implements AssignmentEndpoint {
 
-  @PostMapping("/HtmlTampering/task")
-  @ResponseBody
   private static final double UNIT_PRICE = 2999.99;
 
+  @PostMapping("/HtmlTampering/task")
+  @ResponseBody
   public AttackResult completed(@RequestParam String QTY, @RequestParam String Total) {
     // The price is the server's to decide. The total that came back from the browser is ignored
     // and recalculated, so editing it in the page buys nothing.
