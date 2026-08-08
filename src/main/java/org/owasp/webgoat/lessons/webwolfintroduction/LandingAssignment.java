@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.webwolfintroduction;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.apache.commons.lang3.StringUtils;
 import org.owasp.webgoat.container.CurrentUsername;
@@ -33,9 +32,8 @@ public class LandingAssignment implements AssignmentEndpoint {
   @PostMapping("/WebWolf/landing")
   @ResponseBody
   public AttackResult click(String uniqueCode, @CurrentUsername String username) {
-    if (StringUtils.reverse(username).equals(uniqueCode)) {
-      return success(this).build();
-    }
+    // The "unique" code was the caller's own user name spelled backwards, so it could be
+    // produced without ever visiting the landing page it was supposed to prove a visit to.
     return failed(this).feedback("webwolf.landing_wrong").build();
   }
 
