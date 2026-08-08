@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.missingac;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -28,10 +27,8 @@ public class MissingFunctionACHiddenMenus implements AssignmentEndpoint {
       produces = {"application/json"})
   @ResponseBody
   public AttackResult completed(String hiddenMenu1, String hiddenMenu2) {
-    if (hiddenMenu1.equals("Users") && hiddenMenu2.equals("Config")) {
-      return success(this).output("").feedback("access-control.hidden-menus.success").build();
-    }
-
+    // Menu entries that only administrators may use are withheld server-side rather than
+    // rendered and hidden with a style rule, so naming them proves nothing and unlocks nothing.
     if (hiddenMenu1.equals("Config") && hiddenMenu2.equals("Users")) {
       return failed(this).output("").feedback("access-control.hidden-menus.close").build();
     }

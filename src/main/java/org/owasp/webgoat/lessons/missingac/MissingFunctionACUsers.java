@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.ModelAndView;
 
 /** Created by jason on 1/5/17. */
@@ -31,7 +32,8 @@ public class MissingFunctionACUsers {
   private final MissingAccessControlUserRepository userRepository;
 
   @GetMapping(path = {"access-control/users"})
-  public ModelAndView listUsers() {
+  public ModelAndView listUsers(@CurrentUsername String username) {
+    requireAdministrator(username);
 
     ModelAndView model = new ModelAndView();
     model.setViewName("list_users");
@@ -51,7 +53,10 @@ public class MissingFunctionACUsers {
       path = {"access-control/users"},
       consumes = "application/json")
   @ResponseBody
-  public ResponseEntity<List<DisplayUser>> usersService() {
+  public ResponseEntity<List<DisplayUser>> usersService(@CurrentUsername String username) {
+    // The user directory carries a password-derived hash for every account, so it is an
+    // administrative view and is gated like one instead of being served to any caller.
+    requireAdministrator(username);
     return ResponseEntity.ok(
         userRepository.findAllUsers().stream()
             .map(user -> new DisplayUser(user, PASSWORD_SALT_SIMPLE))
@@ -80,8 +85,12 @@ public class MissingFunctionACUsers {
   @ResponseBody
   public User addUser(@RequestBody User newUser) {
     try {
-      userRepository.save(newUser);
-      return newUser;
+      // Self-registration stays open, but the privilege flag is decided by the server. Sending
+      // "admin": true in the body used to hand the caller an administrator account outright;
+      // the submitted value is now discarded.
+      User safeUser = new User(newUser.getUsername(), newUser.getPassword(), false);
+      userRepository.save(safeUser);
+      return safeUser;
     } catch (Exception ex) {
       log.error("Error creating new User", ex);
       return null;
@@ -91,5 +100,12 @@ public class MissingFunctionACUsers {
     // "application/json", produces = "application/json")
     // TODO implement delete method with id param and authorization
 
+  }
+
+  private void requireAdministrator(String username) {
+    var currentUser = userRepository.findByUsername(username);
+    if (currentUser == null || !currentUser.isAdmin()) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+    }
   }
 }

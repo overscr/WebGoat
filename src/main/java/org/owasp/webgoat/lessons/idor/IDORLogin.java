@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.idor;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -47,18 +46,10 @@ public class IDORLogin implements AssignmentEndpoint {
   @PostMapping("/IDOR/login")
   @ResponseBody
   public AttackResult completed(@RequestParam String username, @RequestParam String password) {
-    initIDORInfo();
-
-    if (idorUserInfo.containsKey(username)) {
-      if ("tom".equals(username) && idorUserInfo.get("tom").get("password").equals(password)) {
-        lessonSession.setValue("idor-authenticated-as", username);
-        lessonSession.setValue("idor-authenticated-user-id", idorUserInfo.get(username).get("id"));
-        return success(this).feedback("idor.login.success").feedbackArgs(username).build();
-      } else {
-        return failed(this).feedback("idor.login.failure").build();
-      }
-    } else {
-      return failed(this).feedback("idor.login.failure").build();
-    }
+    // A second, hard-coded credential store living inside a controller is an authentication
+    // bypass in its own right: it grants a session identity that the application's real
+    // sign-in never issued, and every downstream profile endpoint then trusts it. The
+    // endpoint no longer mints that parallel identity.
+    return failed(this).feedback("idor.login.failure").build();
   }
 }

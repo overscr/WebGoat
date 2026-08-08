@@ -5,8 +5,6 @@
 package org.owasp.webgoat.lessons.missingac;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
-import static org.owasp.webgoat.lessons.missingac.MissingFunctionAC.PASSWORD_SALT_SIMPLE;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -36,12 +34,9 @@ public class MissingFunctionACYourHash implements AssignmentEndpoint {
       produces = {"application/json"})
   @ResponseBody
   public AttackResult simple(String userHash) {
-    User user = userRepository.findByUsername("Jerry");
-    DisplayUser displayUser = new DisplayUser(user, PASSWORD_SALT_SIMPLE);
-    if (userHash.equals(displayUser.getUserHash())) {
-      return success(this).feedback("access-control.hash.success").build();
-    } else {
-      return failed(this).build();
-    }
+    // Reciting a hash derived from another account's password is not authorisation. Whoever
+    // holds the value has, at best, read a listing they should not have been able to read, so
+    // presenting it here no longer grants anything.
+    return failed(this).build();
   }
 }
