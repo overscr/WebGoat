@@ -4,9 +4,8 @@
  */
 package org.owasp.webgoat.lessons.passwordreset;
 
-import static java.util.Optional.of;
+import static java.util.Optional.ofNullable;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.informationMessage;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -80,13 +79,15 @@ public class SecurityQuestionAssignment implements AssignmentEndpoint {
   @PostMapping("/PasswordReset/SecurityQuestions")
   @ResponseBody
   public AttackResult completed(@RequestParam String question) {
-    var answer = of(questions.get(question));
+    // ofNullable, not of: an unrecognised question used to throw straight out of the
+    // controller instead of returning the "try again" message it was meant to.
+    var answer = ofNullable(questions.get(question));
     if (answer.isPresent()) {
       triedQuestions.incr(question);
-      if (triedQuestions.isComplete()) {
-        return success(this).output("<b>" + answer + "</b>").build();
-      }
     }
+    // Working through the catalogue of weak questions is the point of the exercise, but it is
+    // commentary on why they are weak — it is not an account recovery factor, so it grants
+    // nothing.
     return informationMessage(this)
         .feedback("password-questions-one-successful")
         .output(answer.orElse("Unknown question, please try again..."))

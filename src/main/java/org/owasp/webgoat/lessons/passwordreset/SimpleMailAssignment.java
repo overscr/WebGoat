@@ -9,8 +9,11 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.informationMessage;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import org.apache.commons.lang3.StringUtils;
+import java.util.Base64;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.owasp.webgoat.container.CurrentUsername;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -29,6 +32,9 @@ import org.springframework.web.client.RestTemplate;
  */
 @RestController
 public class SimpleMailAssignment implements AssignmentEndpoint {
+  private static final SecureRandom RANDOM = new SecureRandom();
+  private static final Map<String, String> issuedPasswords = new ConcurrentHashMap<>();
+
   private final String webWolfURL;
   private RestTemplate restTemplate;
 
@@ -49,11 +55,13 @@ public class SimpleMailAssignment implements AssignmentEndpoint {
     String emailAddress = ofNullable(email).orElse("unknown@webgoat.org");
     String username = extractUsername(emailAddress);
 
-    if (username.equals(webGoatUsername) && StringUtils.reverse(username).equals(password)) {
+    // The mailed password is compared against the value that was actually generated and sent,
+    // so knowing the account name is no longer enough to derive it.
+    String issued = issuedPasswords.get(username);
+    if (issued != null && username.equals(webGoatUsername) && issued.equals(password)) {
       return success(this).build();
-    } else {
-      return failed(this).feedbackArgs("password-reset-simple.password_incorrect").build();
     }
+    return failed(this).feedbackArgs("password-reset-simple.password_incorrect").build();
   }
 
   @PostMapping(
@@ -64,6 +72,19 @@ public class SimpleMailAssignment implements AssignmentEndpoint {
       @RequestParam String emailReset, @CurrentUsername String username) {
     String email = ofNullable(emailReset).orElse("unknown@webgoat.org");
     return sendEmail(extractUsername(email), email, username);
+  }
+
+  /**
+   * Reversing the account name is not a password — anyone who can name the account can compute
+   * it without ever seeing the mail. Each reset now issues fresh {@link SecureRandom} material
+   * that only the mailbox holder gets to read.
+   */
+  private String issuePassword(String username) {
+    byte[] material = new byte[12];
+    RANDOM.nextBytes(material);
+    String password = Base64.getUrlEncoder().withoutPadding().encodeToString(material);
+    issuedPasswords.put(username, password);
+    return password;
   }
 
   private String extractUsername(String email) {
@@ -80,7 +101,7 @@ public class SimpleMailAssignment implements AssignmentEndpoint {
               .time(LocalDateTime.now())
               .contents(
                   "Thanks for resetting your password, your new password is: "
-                      + StringUtils.reverse(username))
+                      + issuePassword(username))
               .sender("webgoat@owasp.org")
               .build();
       try {

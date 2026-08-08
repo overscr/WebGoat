@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.owasp.webgoat.container.CurrentUsername;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -51,6 +52,14 @@ public class ResetLinkAssignment implements AssignmentEndpoint {
   static Map<String, String> userToTomResetLink = new HashMap<>();
   static Map<String, String> usersToTomPassword = Maps.newHashMap();
   static List<String> resetLinks = new ArrayList<>();
+  /** Which account each one-time reset link was issued to. */
+  private static final Map<String, String> resetLinkOwners = new ConcurrentHashMap<>();
+
+  static void registerResetLinkOwner(String resetLink, String username) {
+    if (resetLink != null && username != null) {
+      resetLinkOwners.put(resetLink, username);
+    }
+  }
 
   static final String TEMPLATE =
       """
@@ -114,6 +123,16 @@ public class ResetLinkAssignment implements AssignmentEndpoint {
       modelAndView.setViewName(VIEW_FORMATTER.formatted("password_link_not_found"));
       return modelAndView;
     }
+    // A one-time link may only change the password of the account it was issued to. Holding
+    // somebody else's link — however it was obtained — does not let the current session
+    // redirect that reset onto itself.
+    String owner = resetLinkOwners.get(form.getResetLink());
+    if (owner == null || !owner.equals(username)) {
+      modelAndView.setViewName(VIEW_FORMATTER.formatted("password_link_not_found"));
+      return modelAndView;
+    }
+    resetLinkOwners.remove(form.getResetLink());
+    resetLinks.remove(form.getResetLink());
     if (checkIfLinkIsFromTom(form.getResetLink(), username)) {
       usersToTomPassword.put(username, form.getPassword());
     }

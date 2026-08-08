@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.passwordreset;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -52,9 +51,9 @@ public class QuestionsAssignment implements AssignmentEndpoint {
           .feedback("password-questions-unknown-user")
           .feedbackArgs(username)
           .build();
-    } else if (validAnswer.equals(securityQuestion)) {
-      return success(this).build();
     }
+    // The answer to "what is your favourite colour" is a guess away for every account in this
+    // map, so a correct answer is not evidence of identity and no longer resets anything.
     return failed(this).build();
   }
 }
