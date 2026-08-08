@@ -8,6 +8,9 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import com.thoughtworks.xstream.XStream;
+import com.thoughtworks.xstream.security.NoTypePermission;
+import com.thoughtworks.xstream.security.NullPermission;
+import com.thoughtworks.xstream.security.PrimitiveTypePermission;
 import org.apache.commons.lang3.StringUtils;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -27,6 +30,15 @@ public class VulnerableComponentsLesson implements AssignmentEndpoint {
     xstream.setClassLoader(Contact.class.getClassLoader());
     xstream.alias("contact", ContactImpl.class);
     xstream.ignoreUnknownElements();
+    // CVE-2013-7285 and its many follow-ups all rely on XStream deserializing a type the
+    // application never asked for (dynamic-proxy/EventHandler gadgets chained to
+    // ProcessBuilder). Denying every type except the one this lesson actually needs closes
+    // the whole class of attack regardless of which gadget chain is used.
+    xstream.addPermission(NoTypePermission.NONE);
+    xstream.addPermission(NullPermission.NULL);
+    xstream.addPermission(PrimitiveTypePermission.PRIMITIVES);
+    xstream.allowTypes(
+        new Class[] {Contact.class, ContactImpl.class, String.class, Integer.class});
     Contact contact = null;
 
     try {
@@ -53,7 +65,12 @@ public class VulnerableComponentsLesson implements AssignmentEndpoint {
         return success(this).feedback("vulnerable-components.success").build();
       }
     } catch (Exception e) {
-      return success(this).feedback("vulnerable-components.success").output(e.getMessage()).build();
+      // An exception here used to be treated as proof the attacker got XStream to build an
+      // unexpected type -- but that is exactly the bug: a thrown exception during processing is
+      // not evidence of anything except that something went wrong, and rewarding it turned any
+      // crash into a free solve. Now that the parser only ever accepts a known allow-list of
+      // types, unexpected input is rejected up front instead of being interpreted after the fact.
+      return failed(this).feedback("vulnerable-components.close").output(e.getMessage()).build();
     }
     return failed(this).feedback("vulnerable-components.fromXML").feedbackArgs(contact).build();
   }
