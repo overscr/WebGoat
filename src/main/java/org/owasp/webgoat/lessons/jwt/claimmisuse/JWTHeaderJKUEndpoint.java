@@ -15,6 +15,7 @@ import com.auth0.jwt.exceptions.JWTVerificationException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.interfaces.RSAPublicKey;
+import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -37,6 +38,17 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class JWTHeaderJKUEndpoint implements AssignmentEndpoint {
 
+  private static final String UNTRUSTED_KEY_SOURCE =
+      "The token nominates a key set this service does not trust.";
+
+  /** Hosts this service is willing to fetch verification keys from. */
+  private static final Set<String> TRUSTED_KEY_HOSTS = Set.of();
+
+  private static boolean isTrustedKeySource(URL keySource) {
+    return "https".equalsIgnoreCase(keySource.getProtocol())
+        && TRUSTED_KEY_HOSTS.contains(keySource.getHost());
+  }
+
   @PostMapping("jku/follow/{user}")
   public @ResponseBody String follow(@PathVariable("user") String user) {
     if ("Jerry".equals(user)) {
@@ -54,7 +66,18 @@ public class JWTHeaderJKUEndpoint implements AssignmentEndpoint {
       try {
         var decodedJWT = JWT.decode(token);
         var jku = decodedJWT.getHeaderClaim("jku");
-        var jwkProvider = new JwkProviderBuilder(new URL(jku.asString())).build();
+        if (jku.asString() == null) {
+          return failed(this).feedback("jwt-invalid-token").output(UNTRUSTED_KEY_SOURCE).build();
+        }
+        URL keySource = new URL(jku.asString());
+        // A token that names the location of its own verification key verifies nothing: the
+        // attacker simply hosts a key pair and signs with the private half. Key material is
+        // only fetched from locations this service already trusts, and the token is not one
+        // of them.
+        if (!isTrustedKeySource(keySource)) {
+          return failed(this).feedback("jwt-invalid-token").output(UNTRUSTED_KEY_SOURCE).build();
+        }
+        var jwkProvider = new JwkProviderBuilder(keySource).build();
         var jwk = jwkProvider.get(decodedJWT.getKeyId());
         var algorithm = Algorithm.RSA256((RSAPublicKey) jwk.getPublicKey());
         JWT.require(algorithm).build().verify(decodedJWT);

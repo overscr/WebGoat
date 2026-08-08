@@ -68,14 +68,21 @@ public class JWTHeaderKIDEndpoint implements AssignmentEndpoint {
                       @Override
                       public byte[] resolveSigningKeyBytes(JwsHeader header, Claims claims) {
                         final String kid = (String) header.get("kid");
-                        try (var connection = dataSource.getConnection()) {
-                          ResultSet rs =
-                              connection
-                                  .createStatement()
-                                  .executeQuery(
-                                      "SELECT key FROM jwt_keys WHERE id = '" + kid + "'");
-                          while (rs.next()) {
-                            return TextCodec.BASE64.decode(rs.getString(1));
+                        if (kid == null) {
+                          return null;
+                        }
+                        // The key id is a lookup value, never SQL. Binding it means a header
+                        // such as "hacked' UNION SELECT 'attacker-key" is searched for as a
+                        // literal id, so the token can no longer nominate its own signing key.
+                        try (var connection = dataSource.getConnection();
+                            var lookup =
+                                connection.prepareStatement(
+                                    "SELECT key FROM jwt_keys WHERE id = ?")) {
+                          lookup.setString(1, kid);
+                          try (ResultSet rs = lookup.executeQuery()) {
+                            if (rs.next()) {
+                              return TextCodec.BASE64.decode(rs.getString(1));
+                            }
                           }
                         } catch (SQLException e) {
                           errorMessage[0] = e.getMessage();

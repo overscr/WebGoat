@@ -10,15 +10,15 @@ import static org.springframework.http.ResponseEntity.ok;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.Header;
-import io.jsonwebtoken.Jwt;
+import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
-import java.util.ArrayList;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
@@ -43,8 +43,21 @@ import org.springframework.web.bind.annotation.RestController;
 public class JWTRefreshEndpoint implements AssignmentEndpoint {
 
   public static final String PASSWORD = "bm5nhSkxCXZkKRy4";
-  private static final String JWT_PASSWORD = "bm5n3SkxCX4kKRy4";
-  private static final List<String> validRefreshTokens = new ArrayList<>();
+  /**
+   * The old signing key was a short literal sitting one character away from the demo password
+   * printed in the lesson, so anyone could re-sign a token. It is regenerated from {@link
+   * SecureRandom} on every boot.
+   */
+  private static final String JWT_PASSWORD = generateSigningSecret();
+
+  /** Refresh tokens are recorded against the account they were minted for. */
+  private static final Map<String, String> refreshTokenOwners = new ConcurrentHashMap<>();
+
+  private static String generateSigningSecret() {
+    byte[] material = new byte[64];
+    new SecureRandom().nextBytes(material);
+    return Base64.getEncoder().encodeToString(material);
+  }
 
   @PostMapping(
       value = "/JWT/refresh/login",
@@ -74,7 +87,7 @@ public class JWTRefreshEndpoint implements AssignmentEndpoint {
             .compact();
     Map<String, Object> tokenJson = new HashMap<>();
     String refreshToken = RandomStringUtils.randomAlphabetic(20);
-    validRefreshTokens.add(refreshToken);
+    refreshTokenOwners.put(refreshToken, user);
     tokenJson.put("access_token", token);
     tokenJson.put("refresh_token", refreshToken);
     return tokenJson;
@@ -88,13 +101,13 @@ public class JWTRefreshEndpoint implements AssignmentEndpoint {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     try {
-      Jwt jwt = Jwts.parser().setSigningKey(JWT_PASSWORD).parse(token.replace("Bearer ", ""));
-      Claims claims = (Claims) jwt.getBody();
+      // parseClaimsJws will not accept a token whose header says "alg":"none": an unsigned
+      // token is now an invalid token rather than a token that happens to skip verification.
+      Jws<Claims> jwt =
+          Jwts.parser().setSigningKey(JWT_PASSWORD).parseClaimsJws(token.replace("Bearer ", ""));
+      Claims claims = jwt.getBody();
       String user = (String) claims.get("user");
       if ("Tom".equals(user)) {
-        if ("none".equals(jwt.getHeader().get("alg"))) {
-          return ok(success(this).feedback("jwt-refresh-alg-none").build());
-        }
         return ok(success(this).build());
       }
       return ok(failed(this).feedback("jwt-refresh-not-tom").feedbackArgs(user).build());
@@ -117,22 +130,26 @@ public class JWTRefreshEndpoint implements AssignmentEndpoint {
     String user;
     String refreshToken;
     try {
-      Jwt<Header, Claims> jwt =
-          Jwts.parser().setSigningKey(JWT_PASSWORD).parse(token.replace("Bearer ", ""));
+      Jws<Claims> jwt =
+          Jwts.parser().setSigningKey(JWT_PASSWORD).parseClaimsJws(token.replace("Bearer ", ""));
       user = (String) jwt.getBody().get("user");
       refreshToken = (String) json.get("refresh_token");
     } catch (ExpiredJwtException e) {
+      // An expired access token may still be exchanged, but only its signature-backed claims
+      // are trusted; e.getClaims() is only populated once the signature has been checked.
       user = (String) e.getClaims().get("user");
       refreshToken = (String) json.get("refresh_token");
     }
 
     if (user == null || refreshToken == null) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-    } else if (validRefreshTokens.contains(refreshToken)) {
-      validRefreshTokens.remove(refreshToken);
-      return ok(createNewTokens(user));
-    } else {
+    }
+    // A refresh token may only renew the session it was issued for. Presenting somebody else's
+    // access token alongside your own refresh token no longer mints a token for that account.
+    if (!user.equals(refreshTokenOwners.get(refreshToken))) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
+    refreshTokenOwners.remove(refreshToken);
+    return ok(createNewTokens(user));
   }
 }

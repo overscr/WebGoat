@@ -11,15 +11,16 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwt;
+import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.impl.TextCodec;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -52,11 +53,22 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class JWTVotesEndpoint implements AssignmentEndpoint {
 
-  public static final String JWT_PASSWORD = TextCodec.BASE64.encode("victory");
+  /**
+   * The dictionary word this key used to be is recoverable from any issued cookie in seconds,
+   * which is what let a voter re-sign themselves as an administrator. It is now 256 bits of
+   * {@link SecureRandom} output chosen when the application starts.
+   */
+  public static final String JWT_PASSWORD = generateSigningSecret();
   private static String validUsers = "TomJerrySylvester";
 
   private static int totalVotes = 38929;
   private final Map<String, Vote> votes = new HashMap<>();
+
+  private static String generateSigningSecret() {
+    byte[] material = new byte[64];
+    new SecureRandom().nextBytes(material);
+    return Base64.getEncoder().encodeToString(material);
+  }
 
   @PostConstruct
   public void initVotes() {
@@ -136,8 +148,10 @@ public class JWTVotesEndpoint implements AssignmentEndpoint {
       value.setSerializationView(Views.GuestView.class);
     } else {
       try {
-        Jwt jwt = Jwts.parser().setSigningKey(JWT_PASSWORD).parse(accessToken);
-        Claims claims = (Claims) jwt.getBody();
+        // parseClaimsJws refuses a token that is not signed at all, so an "alg":"none"
+        // cookie is rejected here rather than being read as though it were trustworthy.
+        Jws<Claims> jwt = Jwts.parser().setSigningKey(JWT_PASSWORD).parseClaimsJws(accessToken);
+        Claims claims = jwt.getBody();
         String user = (String) claims.get("user");
         if ("Guest".equals(user) || !validUsers.contains(user)) {
           value.setSerializationView(Views.GuestView.class);
@@ -161,8 +175,8 @@ public class JWTVotesEndpoint implements AssignmentEndpoint {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     } else {
       try {
-        Jwt jwt = Jwts.parser().setSigningKey(JWT_PASSWORD).parse(accessToken);
-        Claims claims = (Claims) jwt.getBody();
+        Jws<Claims> jwt = Jwts.parser().setSigningKey(JWT_PASSWORD).parseClaimsJws(accessToken);
+        Claims claims = jwt.getBody();
         String user = (String) claims.get("user");
         if (!validUsers.contains(user)) {
           return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
@@ -184,8 +198,10 @@ public class JWTVotesEndpoint implements AssignmentEndpoint {
       return failed(this).feedback("jwt-invalid-token").build();
     } else {
       try {
-        Jwt jwt = Jwts.parser().setSigningKey(JWT_PASSWORD).parse(accessToken);
-        Claims claims = (Claims) jwt.getBody();
+        // The administrator flag is only honoured once the signature over it has been
+        // checked against the server's own key.
+        Jws<Claims> jwt = Jwts.parser().setSigningKey(JWT_PASSWORD).parseClaimsJws(accessToken);
+        Claims claims = jwt.getBody();
         boolean isAdmin = Boolean.valueOf(String.valueOf(claims.get("admin")));
         if (!isAdmin) {
           return failed(this).feedback("jwt-only-admin").build();
