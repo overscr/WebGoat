@@ -5,6 +5,7 @@
 package org.owasp.webgoat.lessons.bypassrestrictions;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
+import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -39,9 +40,10 @@ public class BypassRestrictionsFieldRestrictions implements AssignmentEndpoint {
     if ("change".equals(readOnlyInput)) {
       return failed(this).build();
     }
-    // Reaching this point means the submission ignored the constraints the form advertises.
-    // Those constraints are a usability aid in the browser; the server treats input that
-    // violates them as invalid rather than as a submission worth accepting.
-    return failed(this).build();
+    // Reaching this point means every value violates a restriction the form only enforces in
+    // the browser (a disabled option, a maxlength, a readonly field). None of those are a
+    // server-side data constraint, so there is nothing unsafe about accepting them here - the
+    // lesson is about not mistaking browser-side affordances for access control.
+    return success(this).build();
   }
 }
