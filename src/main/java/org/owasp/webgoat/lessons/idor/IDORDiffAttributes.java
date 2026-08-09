@@ -5,6 +5,7 @@
 package org.owasp.webgoat.lessons.idor;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
+import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -34,9 +35,7 @@ public class IDORDiffAttributes implements AssignmentEndpoint {
             && diffAttribs[1].toLowerCase().trim().equals("role")
         || diffAttribs[1].toLowerCase().trim().equals("userid")
             && diffAttribs[0].toLowerCase().trim().equals("role")) {
-      // Naming two field names is not an authorisation decision and must not be treated as
-      // one; the attribute comparison is informational only.
-      return failed(this).feedback("idor.diff.failure").build();
+      return success(this).feedback("idor.diff.success").build();
     } else {
       return failed(this).feedback("idor.diff.failure").build();
     }
