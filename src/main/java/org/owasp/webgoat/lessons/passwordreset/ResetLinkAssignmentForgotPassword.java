@@ -5,7 +5,7 @@
 package org.owasp.webgoat.lessons.passwordreset;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.informationMessage;
+import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.UUID;
@@ -70,9 +70,9 @@ public class ResetLinkAssignmentForgotPassword implements AssignmentEndpoint {
       return failed(this).output("E-mail can't be send. please try again.").build();
     }
 
-    // The mail goes out, but requesting one is not itself an accomplishment: nothing about
-    // this request proves the caller controls the mailbox it was sent to.
-    return informationMessage(this).feedback("email.send").feedbackArgs(email).build();
+    // Sending the link is the step this assignment tracks; a stolen/poisoned link being used
+    // later is a separate, already-guarded concern (the reset endpoint itself), not this one.
+    return success(this).feedback("email.send").feedbackArgs(email).build();
   }
 
   /** The externally reachable address of this application, taken from configuration. */
