@@ -5,8 +5,10 @@
 package org.owasp.webgoat.lessons.xss;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
+import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.security.SecureRandom;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
 import org.owasp.webgoat.container.session.LessonSession;
@@ -28,11 +30,21 @@ public class DOMCrossSiteScripting implements AssignmentEndpoint {
   @ResponseBody
   public AttackResult completed(
       @RequestParam Integer param1, @RequestParam Integer param2, HttpServletRequest request) {
-    // Two well-known numbers and a request header the caller sets itself are not evidence that
-    // injected script ran inside a victim's page — any client can send all three. The endpoint
-    // therefore mints no session secret and hands nothing back to be replayed as proof. It also
-    // no longer dereferences a header that may be absent, which used to fault the request.
-    return failed(this).build();
+    // This is the lesson's own instrumented callback (webgoat.customjs.phoneHome()), invoked by
+    // script the student must first get a vulnerable page to execute - it is not itself a
+    // security boundary, so there is nothing to hold back here beyond what the lesson already
+    // publishes as the trigger condition.
+    SecureRandom number = new SecureRandom();
+    lessonSession.setValue("randValue", String.valueOf(number.nextInt()));
+
+    String requestedBy = request.getHeader("webgoat-requested-by");
+    if (param1 == 42 && param2 == 24 && "dom-xss-vuln".equals(requestedBy)) {
+      return success(this)
+          .output("phoneHome Response is " + lessonSession.getValue("randValue").toString())
+          .build();
+    } else {
+      return failed(this).build();
+    }
   }
 }
 // something like ...

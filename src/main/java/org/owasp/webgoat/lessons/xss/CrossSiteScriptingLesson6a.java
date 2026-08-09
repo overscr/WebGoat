@@ -5,6 +5,7 @@
 package org.owasp.webgoat.lessons.xss;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
+import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -34,9 +35,10 @@ public class CrossSiteScriptingLesson6a implements AssignmentEndpoint {
   @ResponseBody
   public AttackResult completed(@RequestParam String DOMTestRoute) {
 
-    // A route fragment posted by the client is a claim, not evidence: the server cannot tell a
-    // browser that really rendered the test route from a caller that simply typed the string.
-    // Nothing is certified on the strength of it any more.
-    return failed(this).feedback("xss-reflected-6a-failure").build();
+    if (DOMTestRoute.matches("start\\.mvc#test(\\/|)")) {
+      return success(this).feedback("xss-reflected-6a-success").build();
+    } else {
+      return failed(this).feedback("xss-reflected-6a-failure").build();
+    }
   }
 }

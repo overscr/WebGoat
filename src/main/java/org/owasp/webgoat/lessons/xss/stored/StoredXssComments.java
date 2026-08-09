@@ -5,6 +5,7 @@
 package org.owasp.webgoat.lessons.xss.stored;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
+import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 import static org.springframework.http.MediaType.ALL_VALUE;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,6 +40,7 @@ public class StoredXssComments implements AssignmentEndpoint {
 
   private static final Map<String, List<Comment>> userComments = new HashMap<>();
   private static final List<Comment> comments = new ArrayList<>();
+  private static final String phoneHomeString = "<script>webgoat.customjs.phoneHome()</script>";
 
   static {
     comments.add(
@@ -81,10 +83,14 @@ public class StoredXssComments implements AssignmentEndpoint {
     // Comments are persisted and later rendered into the page for every other reader, so the
     // body is encoded on the way in. Whatever markup the author types is stored — and shown —
     // as text, which is what stops one visitor's comment from scripting the next one's browser.
+    // The lesson is evaluated against the submitted text before that encoding runs: encoding
+    // rewrites the payload (e.g. "<script>" becomes "&lt;script&gt;"), so checking the already-
+    // encoded copy would make the trigger unreachable regardless of what was submitted.
     String text = comment.getText();
     if (text == null || text.length() > MAX_COMMENT_LENGTH) {
       return failed(this).feedback("xss-stored-comment-failure").build();
     }
+    boolean attemptedPhoneHome = text.contains(phoneHomeString);
     comment.setText(HtmlUtils.htmlEscape(text));
 
     List<Comment> comments = userComments.getOrDefault(username, new ArrayList<>());
@@ -94,6 +100,9 @@ public class StoredXssComments implements AssignmentEndpoint {
     comments.add(comment);
     userComments.put(username, comments);
 
+    if (attemptedPhoneHome) {
+      return success(this).feedback("xss-stored-comment-success").build();
+    }
     return failed(this).feedback("xss-stored-comment-failure").build();
   }
 
