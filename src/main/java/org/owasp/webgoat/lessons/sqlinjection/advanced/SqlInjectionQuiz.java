@@ -7,7 +7,9 @@ package org.owasp.webgoat.lessons.sqlinjection.advanced;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
+import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
+import java.util.Arrays;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,8 +26,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class SqlInjectionQuiz implements AssignmentEndpoint {
 
+  private static final String SCORECARD_ATTRIBUTE = "sqlinjection.quiz.scorecard";
+
   String[] solutions = {"Solution 4", "Solution 3", "Solution 2", "Solution 3", "Solution 4"};
-  boolean[] guesses = new boolean[solutions.length];
 
   @PostMapping("/SqlInjectionAdvanced/quiz")
   @ResponseBody
@@ -34,9 +37,11 @@ public class SqlInjectionQuiz implements AssignmentEndpoint {
       @RequestParam String[] question_1_solution,
       @RequestParam String[] question_2_solution,
       @RequestParam String[] question_3_solution,
-      @RequestParam String[] question_4_solution)
+      @RequestParam String[] question_4_solution,
+      HttpSession session)
       throws IOException {
     int correctAnswers = 0;
+    boolean[] guesses = new boolean[solutions.length];
 
     String[] givenAnswers = {
       question_0_solution[0],
@@ -57,6 +62,8 @@ public class SqlInjectionQuiz implements AssignmentEndpoint {
       }
     }
 
+    session.setAttribute(SCORECARD_ATTRIBUTE, guesses);
+
     if (correctAnswers == solutions.length) {
       return success(this).build();
     } else {
@@ -66,7 +73,11 @@ public class SqlInjectionQuiz implements AssignmentEndpoint {
 
   @GetMapping("/SqlInjectionAdvanced/quiz")
   @ResponseBody
-  public boolean[] getResults() {
-    return this.guesses;
+  public boolean[] getResults(HttpSession session) {
+    Object scorecard = session.getAttribute(SCORECARD_ATTRIBUTE);
+    if (scorecard instanceof boolean[] submitted) {
+      return Arrays.copyOf(submitted, submitted.length);
+    }
+    return new boolean[solutions.length];
   }
 }

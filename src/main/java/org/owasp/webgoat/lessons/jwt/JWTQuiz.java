@@ -7,6 +7,8 @@ package org.owasp.webgoat.lessons.jwt;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
+import jakarta.servlet.http.HttpSession;
+import java.util.Arrays;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,14 +20,18 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class JWTQuiz implements AssignmentEndpoint {
 
+  private static final String SCORECARD_ATTRIBUTE = "jwt.quiz.scorecard";
+
   private final String[] solutions = {"Solution 1", "Solution 2"};
-  private final boolean[] guesses = new boolean[solutions.length];
 
   @PostMapping("/JWT/quiz")
   @ResponseBody
   public AttackResult completed(
-      @RequestParam String[] question_0_solution, @RequestParam String[] question_1_solution) {
+      @RequestParam String[] question_0_solution,
+      @RequestParam String[] question_1_solution,
+      HttpSession session) {
     int correctAnswers = 0;
+    boolean[] guesses = new boolean[solutions.length];
 
     String[] givenAnswers = {question_0_solution[0], question_1_solution[0]};
 
@@ -40,6 +46,8 @@ public class JWTQuiz implements AssignmentEndpoint {
       }
     }
 
+    session.setAttribute(SCORECARD_ATTRIBUTE, guesses);
+
     if (correctAnswers == solutions.length) {
       return success(this).build();
     } else {
@@ -49,7 +57,11 @@ public class JWTQuiz implements AssignmentEndpoint {
 
   @GetMapping("/JWT/quiz")
   @ResponseBody
-  public boolean[] getResults() {
-    return this.guesses;
+  public boolean[] getResults(HttpSession session) {
+    Object scorecard = session.getAttribute(SCORECARD_ATTRIBUTE);
+    if (scorecard instanceof boolean[] submitted) {
+      return Arrays.copyOf(submitted, submitted.length);
+    }
+    return new boolean[solutions.length];
   }
 }
