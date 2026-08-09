@@ -5,6 +5,7 @@
 package org.owasp.webgoat.lessons.cryptography;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
+import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.security.InvalidAlgorithmParameterException;
@@ -38,15 +39,14 @@ public class SigningAssignment implements AssignmentEndpoint {
   public String getPrivateKey(HttpServletRequest request)
       throws NoSuchAlgorithmException, InvalidAlgorithmParameterException {
 
-    // A private key that the server hands out over HTTP is no longer a private key: whoever
-    // receives it can sign anything the server would have signed. The pair is generated and
-    // kept server-side, and only the public half of it ever leaves this process.
-    KeyPair keyPair = (KeyPair) request.getSession().getAttribute("keyPair");
-    if (keyPair == null) {
-      keyPair = CryptoUtil.generateKeyPair();
+    String privateKey = (String) request.getSession().getAttribute("privateKeyString");
+    if (privateKey == null) {
+      KeyPair keyPair = CryptoUtil.generateKeyPair();
+      privateKey = CryptoUtil.getPrivateKeyInPEM(keyPair);
+      request.getSession().setAttribute("privateKeyString", privateKey);
       request.getSession().setAttribute("keyPair", keyPair);
     }
-    return "The private key is held by the server and is not available for download.";
+    return privateKey;
   }
 
   @PostMapping("/crypto/signing/verify")
@@ -68,9 +68,7 @@ public class SigningAssignment implements AssignmentEndpoint {
     }
     /* orginal modulus must be used otherwise the signature would be invalid */
     if (CryptoUtil.verifyMessage(modulus, signature, keyPair.getPublic())) {
-      // A valid signature only demonstrates possession of a key this service no longer
-      // discloses; it is not, on its own, something to certify.
-      return failed(this).feedback("crypto-signing.notok").build();
+      return success(this).feedback("crypto-signing.success").build();
     } else {
       log.warn("signature incorrect");
       return failed(this).feedback("crypto-signing.notok").build();
